@@ -41,14 +41,14 @@ for d in paths.files(InputPath) do
      end
 end
 
-perm_idx =  torch.randperm(i)
+perm_idx =  torch.randperm(i-1)
 
 --[[
     Prepare folder to copy data set
 ]]
 function prep_folder(output, set_name, categories)
   
-    test_path = output + '/' + set_name
+    test_path = output .. '/' .. set_name
     
     print ("Prepare path: ",  test_path) 
 
@@ -57,23 +57,20 @@ function prep_folder(output, set_name, categories)
     end
 
     for num, cat in pairs(categories) do
-       cat_dir = test_path + '/' + cat
+       cat_dir = test_path .. '/' .. cat
        if paths.dirp(cat_dir) == false then
           paths.mkdir(cat_dir)
        else
-           print ("Clear directory: ", cat_dir)
            for f in paths.files(cat_dir) do
              if paths.filep(cat_dir .. '/' .. f) then
                 os.remove(cat_dir .. '/' .. f)
              end
-           end
-           
-           print ("Done")
+           end           
        end
     end
 end
 
-function os_copy (source_path, dest_path)    
+function os_copy (source_path, dest_path)  
     local source = io.open(source_path, "rb")  
     local dest = io.open(dest_path, "wb")  
     dest:write(source:read("*a"))  
@@ -84,20 +81,22 @@ end
 local ds_name =  'test'
 
 prep_folder(opt.output, ds_name, categories)
-local csamples = torch.ceil( #perm_idx * opt.frac)
+local csamples = torch.ceil( perm_idx:size(1) * opt.frac)
 for i=1, csamples do
-    xlua.progress(i, #perm_idx)
+    xlua.progress(i, csamples)
     local idx = perm_idx[i]
-    os_copy(files_list[idx][3], opt.output + '/' + ds_name )
+    os_copy(files_list[idx][3], opt.output .. '/' .. ds_name .. '/' .. files_list[idx][1] .. '/' .. files_list[idx][2] )
 end
 
 local ds_name =  'train'
 prep_folder(opt.output, ds_name, categories)
-local csamples = #perm_idx
-for i=torch.ceil( #perm_idx * opt.frac), #perm_idx do
-    xlua.progress(i, #perm_idx)
+local csamples = perm_idx:size(1) - torch.ceil( perm_idx:size(1) * opt.frac)
+local k = 1
+for i=torch.ceil( perm_idx:size(1) * opt.frac)+1, perm_idx:size(1) do
+    xlua.progress(k, csamples)
     local idx = perm_idx[i]
-    os_copy(files_list[idx][3], opt.output + '/' + ds_name )
+    os_copy(files_list[idx][3], opt.output .. '/' .. ds_name .. '/' .. files_list[idx][1] .. '/' .. files_list[idx][2] )
+    k = k + 1
 end
 
 print ("Done")
