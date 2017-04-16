@@ -1,4 +1,5 @@
 require 'image'
+require 'dpnn'
 
 local M = {}
 
@@ -11,15 +12,13 @@ function M.Compose(transforms)
    end
 end
 
-function M.ColorNormalize( )
+function M.ColorNormalize(meanstd)
    return function(img)
-      local MIN_BOUND = -1000.0
-      local MAX_BOUND = 400.0
       img = img:clone()
-      img:add(-MIN_BOUND)
-      img:div(MAX_BOUND - MIN_BOUND)
-      img[torch.gt(img, 1)] = 1
-      img[torch.lt(img, 0)] = 0
+      for i=1,3 do
+         img[i]:add(-meanstd.mean[i])
+         img[i]:div(meanstd.std[i])
+      end
       return img
    end
 end
@@ -89,12 +88,20 @@ function M.Scale(size, interpolation)
    end
 end
 
+function M.SpatialRegionDropout(p)
+   local net = nn.SpatialRegionDropout(p)
+   return function(input)
+       return net:forward(input)
+   end  
+end
+
 -- Crop to centered rectangle
 function M.CenterCrop(size, padding)
+   padding = padding or 0
    return function(input)
       local i  = type(input) ~= 'table' and input or input[1]
       if padding > 0 then
-         local temp = i.new(1, i:size(2) + 2*padding, i:size(3) + 2*padding)
+         local temp = i.new(3, i:size(2) + 2*padding, i:size(3) + 2*padding)
          temp:zero()
              :narrow(2, padding+1, i:size(2))
              :narrow(3, padding+1, i:size(3))
@@ -102,7 +109,7 @@ function M.CenterCrop(size, padding)
         i = temp
 	if type(input) == 'table' then
 	   input[1] = temp
-	   temp = input[2].new(1, input[2]:size(2) + 2*padding, input[2]:size(3) + 2*padding)
+	   temp = input[2].new(3, input[2]:size(2) + 2*padding, input[2]:size(3) + 2*padding)
            temp:zero()
                :narrow(2, padding+1, input[2]:size(2))
                :narrow(3, padding+1, input[2]:size(3))
@@ -294,6 +301,114 @@ function M.Rotation(deg)
       end
       return input
    end
+end
+
+-- Lighting noise (AlexNet-style PCA-based noise)
+function M.Lighting(alphastd, eigval, eigvec)
+   return function(input)
+      if alphastd == 0 then
+         return input
+      end
+
+      local alpha = torch.Tensor(3):normal(0, alphastd)
+      local rgb = eigvec:clone()
+         :cmul(alpha:view(1, 3):expand(3, 3))
+         :cmul(eigval:view(1, 3):expand(3, 3))
+         :sum(2)
+         :squeeze()
+
+      input = input:clone()
+      for i=1,3 do
+         input[i]:add(rgb[i])
+      end
+      return input
+   end
+end
+
+local function blend(img1, img2, alpha)
+   return img1:mul(alpha):add(1 - alpha, img2)
+end
+
+local function grayscale(dst, img)
+   dst:resizeAs(img)
+   dst[1]:zero()
+   dst[1]:add(0.299, img[1]):add(0.587, img[2]):add(0.114, img[3])
+   dst[2]:copy(dst[1])
+   dst[3]:copy(dst[1])
+   return dst
+end
+
+function M.Saturation(var)
+   local gs
+
+   return function(input)
+      gs = gs or input.new()
+      grayscale(gs, input)
+
+      local alpha = 1.0 + torch.uniform(-var, var)
+      blend(input, gs, alpha)
+      return input
+   end
+end
+
+function M.Brightness(var)
+   local gs
+
+   return function(input)
+      gs = gs or input.new()
+      gs:resizeAs(input):zero()
+
+      local alpha = 1.0 + torch.uniform(-var, var)
+      blend(input, gs, alpha)
+      return input
+   end
+end
+
+function M.Contrast(var)
+   local gs
+
+   return function(input)
+      gs = gs or input.new()
+      grayscale(gs, input)
+      gs:fill(gs[1]:mean())
+
+      local alpha = 1.0 + torch.uniform(-var, var)
+      blend(input, gs, alpha)
+      return input
+   end
+end
+function M.RandomOrder(ts)
+   return function(input)
+      local img = input.img or input
+      local order = torch.randperm(#ts)
+      for i=1,#ts do
+         img = ts[order[i]](img)
+      end
+      return img
+   end
+end
+
+function M.ColorJitter(opt)
+   local brightness = opt.brightness or 0
+   local contrast = opt.contrast or 0
+   local saturation = opt.saturation or 0
+
+   local ts = {}
+   if brightness ~= 0 then
+      table.insert(ts, M.Brightness(brightness))
+   end
+   if contrast ~= 0 then
+      table.insert(ts, M.Contrast(contrast))
+   end
+   if saturation ~= 0 then
+      table.insert(ts, M.Saturation(saturation))
+   end
+
+   if #ts == 0 then
+      return function(input) return input end
+   end
+
+   return M.RandomOrder(ts)
 end
 
 return M

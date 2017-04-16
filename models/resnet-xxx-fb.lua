@@ -1,8 +1,8 @@
 require 'nn'
 require 'cunn'
-require 'models/gradient_decrease'
-require 'models/gradient_debug'
-require 'models/decoder_module'
+-- require 'models/gradient_decrease'
+-- require 'models/gradient_debug'
+-- require 'models/decoder_module'
 
 cudnn = require 'cudnn'
 
@@ -27,10 +27,10 @@ local last_layer_size = 512
 local classifier = nn.Sequential()
 --      classifier:add(nn.GradientDecrease(opt.gradiend_decrease))
 --      classifier:add(nn.Dropout(0.5))
-      classifier:add(nn.Linear( linear_input_size, last_layer_size, false))
+      classifier:add(nn.Linear( linear_input_size, last_layer_size))
       classifier:add(nn.BatchNormalization(last_layer_size)) 
       classifier:add(nn.ReLU(true))
-      classifier:add(nn.Dropout(0.5))
+      classifier:add(nn.Dropout(0.3))
       classifier:add(nn.Linear(last_layer_size, class_count ) )
 
 

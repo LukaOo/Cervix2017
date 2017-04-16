@@ -5,14 +5,18 @@
 require 'nn'
 require 'xlua'
 require 'paths'
+require 'image'
+local transform = require 'datasets/transforms'
 
 opt = lapp[[
    -i, --input            (default "")     input directory where all data placed 
    -o, --output           (default "")     directory to save test and train set
    -f, --frac             (default 0.1)    fraction subsampling of test set
+   --transform            (default nil)    transform configuration or nil if no transform required '{output_image_size=<>, crop_size=<>}'
 ]]
 
 print(opt)
+transform_config = loadstring(" return " .. opt.transform)()
 
 local InputPath = opt.input
 
@@ -26,15 +30,17 @@ for d in paths.files(InputPath) do
      idx = d:find('_')
      if idx ~= nil then
        cat = d:sub(idx+1)
-       if categories[cat] == nil then categories[#categories+1] = cat end
-       if paths.dirp(InputPath .. '/' .. d) then
-         
-         local dir = InputPath .. '/' .. d
-         for f in paths.files(dir) do
-           if paths.filep(dir .. '/' .. f) then
-              -- store category value, file name & full path to source
-              files_list[i] = { [1] = cat, [2]=f, [3]=dir .. '/'.. f}
-              i = i + 1
+       if tonumber(cat) ~= nil then
+         if categories[cat] == nil then categories[#categories+1] = cat end
+         if paths.dirp(InputPath .. '/' .. d) then
+           
+           local dir = InputPath .. '/' .. d
+           for f in paths.files(dir) do
+             if paths.filep(dir .. '/' .. f) then
+                -- store category value, file name & full path to source
+                files_list[i] = { [1] = cat, [2]=f, [3]=dir .. '/'.. f}
+                i = i + 1
+             end
            end
          end
        end
@@ -48,6 +54,10 @@ perm_idx =  torch.randperm(i-1)
 ]]
 function prep_folder(output, set_name, categories)
   
+    if paths.dirp(output) == false then
+       paths.mkdir(output)
+    end
+
     test_path = output .. '/' .. set_name
     
     print ("Prepare path: ",  test_path) 
@@ -70,12 +80,30 @@ function prep_folder(output, set_name, categories)
     end
 end
 
-function os_copy (source_path, dest_path)  
-    local source = io.open(source_path, "rb")  
-    local dest = io.open(dest_path, "wb")  
-    dest:write(source:read("*a"))  
-    source:close()    
-    dest:close()    
+function preprocess()
+      return transform.Compose{
+             transform.Scale(transform_config.output_image_size),
+             transform.CenterCrop(transform_config.crop_size, 0),
+             
+            }
+end
+
+if transform_config ~= nil then
+   preprocessor = preprocess()
+end
+
+function os_copy (source_path, dest_path) 
+    if transform_config == nil then
+      local source = io.open(source_path, "rb")  
+      local dest = io.open(dest_path, "wb")  
+      dest:write(source:read("*a"))  
+      source:close()    
+      dest:close()
+    else
+      img = image.load(source_path)
+      img = preprocessor(img)
+      image.save(dest_path, img)
+    end
 end
 
 local ds_name =  'test'

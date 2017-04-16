@@ -24,7 +24,8 @@ opt = lapp[[
    --optim                    (default "sgd")      optimizer
    --use_optnet               (default 1)          use memory optimisation by optnet
    --checkpoint               (default '')         use path for checkpoints
-   --continue                 (default '')         use model to continue learning 
+   --continue                 (default '')         use model to continue learning
+   --save_epoch               (default 10)         save checkpoints of neural net each N epoch
 ]]
 
 print(opt)
@@ -122,7 +123,7 @@ trainData = Hdf5Provider( provider_config, opt.batchSize )
 provider_config.data_set_name = 'test'
 testData  = Hdf5Provider( provider_config, opt.batchSize )
 
-confusion = optim.ConfusionMatrix(2)
+confusion = optim.ConfusionMatrix( net_config.class_count )
 
 print('Will save at '..opt.save)
 
@@ -311,6 +312,13 @@ function test()
 --       optimState.learningRate = optimState.learningRate * 0.9
 --    end
     last_error  = test_error
+  else
+     if (epoch % opt.save_epoch) == 0 then
+        local filename = paths.concat(opt.save, 'checkpoint.t7')
+        print('==> saving model checkpoint to '.. filename)
+        torch.save(filename, model )
+        torch.save(filename .. '.ostat', optimState )
+     end    
   end
 
   confusion:zero()
