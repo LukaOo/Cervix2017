@@ -30,7 +30,7 @@ local classifier = nn.Sequential()
       classifier:add(nn.Linear( linear_input_size, last_layer_size))
       classifier:add(nn.BatchNormalization(last_layer_size)) 
       classifier:add(nn.ReLU(true))
-      classifier:add(nn.Dropout(0.3))
+      classifier:add(nn.Dropout(0.2))
       classifier:add(nn.Linear(last_layer_size, class_count ) )
 
 

@@ -13,6 +13,7 @@ opt = lapp[[
    -o, --output           (default "")     directory to save test and train set
    -f, --frac             (default 0.1)    fraction subsampling of test set
    --transform            (default nil)    transform configuration or nil if no transform required '{output_image_size=<>, crop_size=<>}'
+   --prefix               (default '')     add prefix to output files
 ]]
 
 print(opt)
@@ -123,7 +124,7 @@ local k = 1
 for i=torch.ceil( perm_idx:size(1) * opt.frac)+1, perm_idx:size(1) do
     xlua.progress(k, csamples)
     local idx = perm_idx[i]
-    os_copy(files_list[idx][3], opt.output .. '/' .. ds_name .. '/' .. files_list[idx][1] .. '/' .. files_list[idx][2] )
+    os_copy(files_list[idx][3], opt.output .. '/' .. ds_name .. '/' .. files_list[idx][1] .. '/' .. opt.prefix .. files_list[idx][2] )
     k = k + 1
 end
 

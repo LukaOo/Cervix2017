@@ -90,7 +90,7 @@ do
         self.flip = 0
         if self.ds_name == 'train' then
 
-              local rot_angle = torch.uniform(-89, 89)
+              local rot_angle = torch.uniform(-179, 179)
               local minScale, maxScale   = self.image_size * 0.8, self.image_size * 1.3 
               local minTranslate, maxTranslate = -30, 30
               
@@ -113,7 +113,6 @@ do
                       
                       transform.ColorNormalize(meanstd),
                       transform.AddNoise(0.05),
-                      transform.SpatialRegionDropout(0.3)
                     } 
  
         else

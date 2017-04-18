@@ -2,12 +2,13 @@
 #######
 # First parameter is output path
 ########
-
+GPU=2
 SAVE_PATH=./cervix_classifier
-RESNET=resnet-200
+RESNET=resnet-18
 CONTINUE=""
 LearningRateDecay=1e-4
 LearningRate=0.01
+MODEL=resnet-xxx-fb_spatial_transformer
 
 iter=0
 if [ "$1" == "continue" ]; then
@@ -33,14 +34,14 @@ if [ $iter -gt 0 ]; then
   fi
 fi
 # start train
-export CUDA_VISIBLE_DEVICES=2; th ./train.lua \
+export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
  -i ./data/nn_ts/ \
  -s $SAVE_PATH \
  -b 10 \
  -r $LearningRate \
  --learningRateDecay $LearningRateDecay \
- --model resnet-xxx-fb \
- --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7'}" \
+ --model $MODEL \
+ --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', localization_resnet=false}" \
  --provider_config "{provider='datasets/h5-dir-provider', image_size=224}" \
  --use_optnet 0 \
  --epoch_step 100 \

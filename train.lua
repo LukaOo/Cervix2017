@@ -1,6 +1,7 @@
 require 'xlua'
 require 'optim'
 require 'nn'
+require 'stn'
 local utils=require 'utils'
 
 -- dofile './provider.lua'
@@ -75,7 +76,7 @@ if opt.backend == 'cudnn' then
    cudnn.convert(model, cudnn)
 end
 
-utils.InitNetwork(model, true)
+--utils.InitNetwork(model, true)
 
 if opt.use_optnet == 1 then
    optnet = require 'optnet'
@@ -151,7 +152,7 @@ optimState = {
 }
 
 else
-  optimState = torch.load(opt.continue .. '.stat')
+  optimState = torch.load(opt.continue .. '.ostat')
 end
 
 last_error = 99
