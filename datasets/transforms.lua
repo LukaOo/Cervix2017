@@ -109,7 +109,7 @@ function M.CenterCrop(size, padding)
         i = temp
 	if type(input) == 'table' then
 	   input[1] = temp
-	   temp = input[2].new(3, input[2]:size(2) + 2*padding, input[2]:size(3) + 2*padding)
+	   temp = input[2].new(1, input[2]:size(2) + 2*padding, input[2]:size(3) + 2*padding)
            temp:zero()
                :narrow(2, padding+1, input[2]:size(2))
                :narrow(3, padding+1, input[2]:size(3))

@@ -27,6 +27,7 @@ opt = lapp[[
    --checkpoint               (default '')         use path for checkpoints
    --continue                 (default '')         use model to continue learning
    --save_epoch               (default 10)         save checkpoints of neural net each N epoch
+   --criterion                (default 'CrossEntropy') criterion CrossEntropy|Dice
 ]]
 
 print(opt)
@@ -85,9 +86,9 @@ if opt.use_optnet == 1 then
      mod_input = cast(torch.rand(2, 1, 1, 32,32,32))
    else
       if provider_config.flat == true then
-          mod_input = cast(torch.rand( 2, 1, net_config.input_size))
+          mod_input = cast(torch.rand( 2, net_config.cinput_planes, net_config.input_size))
       else
-          mod_input = cast(torch.rand( 1, 1, 64, 64))
+          mod_input = cast(torch.rand( 1, net_config.cinput_planes, net_config.image_size, net_config.image_size))
       end
    end
    mod_opts = {inplace=true, mode='training'}
@@ -124,21 +125,32 @@ trainData = Hdf5Provider( provider_config, opt.batchSize )
 provider_config.data_set_name = 'test'
 testData  = Hdf5Provider( provider_config, opt.batchSize )
 
-confusion = optim.ConfusionMatrix( net_config.class_count )
+confusion = opt.criterion == 'CrossEntropy' and optim.ConfusionMatrix( net_config.class_count ) or nil
 
 print('Will save at '..opt.save)
 
 paths.mkdir(opt.save)
 testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
-testLogger:setNames{'Mean class accuracy (train set)', 'Nean class accuracy (test set)', 'Train error', 'Test error'}
+if opt.criterion == 'Dice' then
+   testLogger:setNames{'Dice loss (train set)', 'Dice loss (test set)'}
+else  
+   testLogger:setNames{'Mean class accuracy (train set)', 'Mean class accuracy (test set)', 'Train error', 'Test error'}
+end
 testLogger.showPlot = false
 
 parameters,gradParameters = dpt:getParameters()
 
 
-print(c.blue'==>' ..' setting criterion')
-criterion = cast(nn.CrossEntropyCriterion())
---criterion  = cast(nn.BCECriterion())
+print(c.blue'==>' ..' setting criterion ' .. opt.criterion)
+if opt.criterion == 'CrossEntropy' then
+   criterion = cast(nn.CrossEntropyCriterion())
+else
+  if opt.criterion == 'Dice' then
+     require 'criterions/dice_coeff_loss'
+     criterion = cast(nn.DICECriterion())
+  end
+end
+
 
 
 
@@ -197,11 +209,10 @@ function train()
 	  
       
       local f = criterion:forward(outputs, targets)
-      --print (f)
       sum_error = sum_error + f
       local df_do = criterion:backward(outputs, targets)
       dpt:backward(inputs, df_do)
-      confusion:batchAdd( outputs, targets)
+      if confusion then confusion:batchAdd( outputs, targets) end
 
       return f,gradParameters
     end
@@ -217,16 +228,20 @@ function train()
     
   end
 
-  confusion:updateValids()
-  print(('Train accuracy: '..c.cyan'%.2f'..' %%\t time: %.2f s, avg error: %.4f'):format(
-        confusion.totalValid * 100, torch.toc(tic), sum_error / iters ))
+  if confusion then
+    confusion:updateValids()
+    print(('Train accuracy: '..c.cyan'%.2f'..' %%\t time: %.2f s, avg error: %.4f'):format(
+            confusion.totalValid * 100, torch.toc(tic), sum_error / iters ))
         
-  print ('Confusion matrix: ', confusion)
+    print ('Confusion matrix: ', confusion)
+    train_acc   = confusion.totalValid
+    confusion:zero()
+  else
+    print (("Train error: ".. c.cyan'%.4f' .. ' %%\t time: %.2f s' ):format( sum_error / iters, torch.toc(tic)))
+  end
 
-  train_acc   = confusion.totalValid
   train_error = sum_error / iters
 
-  confusion:zero()
   epoch = epoch + 1
 end
 
@@ -238,12 +253,12 @@ function test()
   local bs = opt.batchSize
   local sum_error = 0
   local iters = 0
-  local c  = math.ceil(testData:size()/bs)
+  local cc  = math.ceil(testData:size()/bs)
 
   
   testData:reset()
-  for i=1, c do
-    xlua.progress(i,  c)
+  for i=1, cc do
+    xlua.progress(i,  cc)
     
     local k = (i-1)*bs + 1
     
@@ -256,18 +271,27 @@ function test()
     sum_error = sum_error + e
     iters = iters + 1
     
-    confusion:batchAdd( outputs,targets)
+    if confusion then confusion:batchAdd( outputs,targets) end
   end
 
-  confusion:updateValids()
-  print('Test accuracy:', confusion.totalValid * 100, " Avg test err: ", sum_error / iters )
-  print ('Confusion matrix: ', confusion)
+  if confusion then
+    confusion:updateValids()
+    print('Test accuracy:', confusion.totalValid * 100, " Avg test err: ", sum_error / iters )
+    print ('Confusion matrix: ', confusion)
+  else
+    print (("Test error: ".. c.cyan'%.4f' ):format( sum_error / iters ))
+  end
   test_error = sum_error / iters
   
   if testLogger then
     paths.mkdir(opt.save)
-    testLogger:add{train_acc, confusion.totalValid, train_error, test_error}
-    testLogger:style{'-','-', '-', '-' }
+    if confusion then
+      testLogger:add{train_acc, confusion.totalValid, train_error, test_error}
+      testLogger:style{'-','-', '-', '-' }
+    else
+      testLogger:add{train_error, test_error}
+      testLogger:style{'-','-', '-', '-' }
+    end  
     testLogger:plot()
 
     if paths.filep(opt.save..'/test.log.eps') then
@@ -322,7 +346,7 @@ function test()
      end    
   end
 
-  confusion:zero()
+  if confusion then confusion:zero() end
 end
 
 

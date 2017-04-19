@@ -112,22 +112,23 @@ end
 function CreateLocalizationNet(cinput_planes)
     local net = nn.Sequential()
     
-    ConvReLU(net, cinput_planes,  16, 'local_relu_1_1') -- 224 x 224
+    ConvReLU(net, cinput_planes,  32, 'local_relu_1_1') -- 224 x 224
+    ConvReLU(net, 32,  64, 'local_relu_2_1')
     net:add(MaxPooling(2, 2, 2, 2):ceil())     -- 112 x 112    
-    ConvReLU(net, 16,  32, 'local_relu_2_1')  
+    ConvReLU(net, 64,  64, 'local_relu_2_1')  
     net:add(MaxPooling(2, 2, 2, 2):ceil())     -- 56  x 56
-    ConvReLU(net, 32,  64, 'local_relu_3_1')  
+    ConvReLU(net, 64,  128, 'local_relu_3_1')  
     net:add(MaxPooling(2, 2, 2, 2):ceil())     -- 28  x 28    
-    ConvReLU(net, 64, 128, 'local_relu_4_1')  
+    ConvReLU(net, 128, 128, 'local_relu_4_1')  
     net:add(MaxPooling(2, 2, 2, 2):ceil())     -- 14 x 14 
     ConvReLU(net, 128, 256, 'local_relu_5_1')  
     net:add(MaxPooling(2, 2, 2, 2):ceil())     -- 7 x 7
-    ConvReLU(net, 256, 256, 'local_relu_6_1')
+    ConvReLU(net, 256, 512, 'local_relu_6_1')
     
     net:add(AvgPooling(7, 7, 1, 1))            -- 512 features as output    
-    net:add(nn.View(-1, 256))
-    net:add(nn.Linear(256, 256))
-    nn.BatchNormalization(256)
+    net:add(nn.View(-1, 512))
+    net:add(nn.Linear(512, 512))
+    nn.BatchNormalization(512)
     net:add(nn.ReLU(true))
     -- add final 
     local regression = nn.Linear(256, 6)
