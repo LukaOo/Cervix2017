@@ -47,7 +47,8 @@ export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
  --max_epoch 100000 \
  --optim sgd \
  --criterion Dice \
- --backend cudnn $CONTINUE 
+ --backend cudnn $CONTINUE \
+ --checkpoint ./checkpoints 
  #--continue ./VGG_LUNG_AUG_SLarge/checkpoint.t7 \
  #--min_save_error -2.08
 

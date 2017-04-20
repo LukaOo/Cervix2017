@@ -60,8 +60,6 @@ do
                                   saturation = 0.4,
                               }),                      
                       transform.Lighting(0.1, pca.eigval, pca.eigvec),
-                      
-                      transform.ColorNormalize(meanstd),
                       transform.AddNoise(0.05),
                     }
         else
@@ -205,15 +203,17 @@ do
           
           -- get images
           local input  =  h5_file:read( fld ):all():clone():double()/255.0
-          local target = h5_file:read('mask'):all():clone():double()
+          local target =  h5_file:read('mask'):all():clone():double() /255.0
           input = augmentation({input, target:reshape(1, target:size(1), target:size(2))})
           target = input[2]
           input  = input[1]
-
           -- agment input only, add noise and jitter collors
           input =  resize_tensor( self.input_augmentation(input) )
           target = resize_tensor(target)
-
+          -- normalize target to 0-1
+          target[torch.gt(target, 0.499999999)] = 1
+          target[torch.lt(target, 0.5)] = 0
+          
           h5_file:close()
         return input, target
     end

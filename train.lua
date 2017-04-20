@@ -2,6 +2,7 @@ require 'xlua'
 require 'optim'
 require 'nn'
 require 'stn'
+require 'dpnn'
 local utils=require 'utils'
 
 -- dofile './provider.lua'
@@ -147,7 +148,12 @@ if opt.criterion == 'CrossEntropy' then
 else
   if opt.criterion == 'Dice' then
      require 'criterions/dice_coeff_loss'
-     criterion = cast(nn.DICECriterion())
+     criterion = cast( nn.DICECriterion())
+  else
+     if opt.criterion == 'SpatialBCE' then
+        require 'criterions/SpatialBCECriterion'
+        criterion = cast( nn.SpatialBCECriterion()) --nn.DICECriterion())
+     end
   end
 end
 
@@ -192,9 +198,7 @@ function train()
 
     local inputs, targets = trainData:get_next_batch()
 	
-	if opt.checkpoint ~= nil and opt.checkpoint ~= '' and optimState.evalCounter~= nil and optimState.evalCounter % 50 == 0 then
-	   torch.save(opt.checkpoint .. '/check_point.' .. optimState.evalCounter, inputs:float())
-	end
+
     
 
     inputs  = cast(inputs)
@@ -206,9 +210,15 @@ function train()
       gradParameters:zero()
       
       local outputs = dpt:forward(inputs)
-	  
+      
+	  	if opt.checkpoint ~= nil and opt.checkpoint ~= '' and optimState.evalCounter~= nil and optimState.evalCounter % 50 == 0 then
+        torch.save(opt.checkpoint .. '/check_point.' .. optimState.evalCounter, inputs:float())
+        torch.save(opt.checkpoint .. '/check_point_t.' .. optimState.evalCounter, targets:float())
+        torch.save(opt.checkpoint .. '/check_point_o.' .. optimState.evalCounter, outputs:float())
+      end
       
       local f = criterion:forward(outputs, targets)
+      print (f)
       sum_error = sum_error + f
       local df_do = criterion:backward(outputs, targets)
       dpt:backward(inputs, df_do)

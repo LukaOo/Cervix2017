@@ -43,7 +43,7 @@ function DICECriterion:updateGradInput(input, target)
 	local gradInput = - 1/denom
 	local part2     = 2 * ( target - ( torch.sum( torch.cmul( input, target) ) / denom ) )
         
-        self.gradInput = gradInput * part2
+  self.gradInput = gradInput * part2
 
         
 	return self.gradInput
