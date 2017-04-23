@@ -132,8 +132,8 @@ print('Will save at '..opt.save)
 
 paths.mkdir(opt.save)
 testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
-if opt.criterion == 'Dice' then
-   testLogger:setNames{'Dice loss (train set)', 'Dice loss (test set)'}
+if opt.criterion == 'Dice' or opt.criterion == 'SpatialBCE' then
+   testLogger:setNames{opt.criterion.. ' loss (train set)', opt.criterion..' loss (test set)'}
 else  
    testLogger:setNames{'Mean class accuracy (train set)', 'Mean class accuracy (test set)', 'Train error', 'Test error'}
 end

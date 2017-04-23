@@ -2,8 +2,8 @@
 #######
 # First parameter is output path
 ########
-GPU=1,3
-SAVE_PATH=./unet_segmenter
+GPU=2,3
+SAVE_PATH=./unet_segmenter_bce
 CONTINUE=""
 LearningRateDecay=1e-4
 LearningRate=0.01
@@ -46,7 +46,7 @@ export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
  --epoch_step 100 \
  --max_epoch 100000 \
  --optim sgd \
- --criterion Dice \
+ --criterion SpatialBCE \
  --backend cudnn $CONTINUE \
  --checkpoint ./checkpoints 
  #--continue ./VGG_LUNG_AUG_SLarge/checkpoint.t7 \

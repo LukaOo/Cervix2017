@@ -1,3 +1,8 @@
+##
+## Extract masks from marked bboxes and source images
+## Input - failes with marks, images path
+## Ouput - hdf5 failes with masks for each images
+##
 import sys
 import os
 import h5py
@@ -10,6 +15,7 @@ from skimage import measure, morphology
 
 import json
 import re
+from tqdm import tqdm
 
 from optparse import OptionParser
 
@@ -21,6 +27,9 @@ parser.add_option("-m", "--masks", dest="masks",
                   
 parser.add_option("-o", "--output", dest="output",
                   help="Output path to store h5 files with masks")
+                  
+parser.add_option("-p", "--preffix", dest="preffix", default='',
+                  help="Preffix to add to each output file name")
                   
 (options, args) = parser.parse_args()
 
@@ -66,11 +75,14 @@ def mark_image(ImageType, ImageName, ShapeAttributes):
     return mask, im
 
 if __name__ == "__main__":
+    if not os.path.exists(OUTPUT_MASK_PATH):
+       os.makedirs(OUTPUT_MASK_PATH)
+       
     for mf in markers:
         marker_file = pd.read_csv(MARKERS_INPUT_PATH + '/' + mf)
         mf = re.search(r'^(.+?)\.txt', mf).group(1)
         print mf
-        for i, j in enumerate(marker_file['region_shape_attributes']):
+        for i, j in tqdm(enumerate(marker_file['region_shape_attributes']), ncols=47):
             o = json.loads(j)
             if 'name' in o:
                 f = marker_file['#filename'][i]
@@ -80,8 +92,9 @@ if __name__ == "__main__":
                    continue
                 image = scipy.misc.imresize(image, (512, 512, 3)).transpose((2, 0, 1))
                 mask  = scipy.misc.imresize(mask, (512, 512))
-                ofile = h5py.File(OUTPUT_MASK_PATH + '/' + mf+'_'+ f + '.h5', 'w')
+                ofile = h5py.File(OUTPUT_MASK_PATH + '/' + mf+'_' + options.preffix + f + '.h5', 'w')
                 ofile.create_dataset('mask',data=mask, compression='gzip')
                 ofile.create_dataset('image', data=image, compression='gzip')
                 ofile.close()
-            sys.stderr.write('\r%d'% i)
+            
+        print ''

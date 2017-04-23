@@ -27,8 +27,7 @@ function DICECriterion:updateOutput(input, target)
 	-- compute denominator: sum_i(X) + sum_i(Y)
 	denom = torch.sum(input) + torch.sum(target) + eps
 
-	output = numerator/denom / input:size(1)
-
+	output = numerator/denom
 	self.output = -output
 
 	return self.output
