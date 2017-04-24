@@ -60,6 +60,7 @@ do
                                   saturation = 0.4,
                               }),                      
                       transform.Lighting(0.1, pca.eigval, pca.eigvec),
+                      transform.MakeMonochromeGreenChannel(0.1),
                       transform.AddNoise(0.05),
                     }
         else

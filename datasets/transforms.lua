@@ -95,6 +95,18 @@ function M.SpatialRegionDropout(p)
    end  
 end
 
+function M.MakeMonochromeGreenChannel(p)
+   local prob = p
+   return function(input)
+        if  torch.uniform() < prob then 
+            grayscale = (input[1] * 0.21 + input[2] * 0.72 + input[3] * 0.07):reshape(1, input:size(2), input:size(3))
+            zerochannel = torch.DoubleTensor(1,input:size(2), input:size(3)):zero()
+            input = torch.cat({zerochannel, grayscale, zerochannel}, 1)
+        end
+       return input
+   end  
+end
+
 -- Crop to centered rectangle
 function M.CenterCrop(size, padding)
    padding = padding or 0
