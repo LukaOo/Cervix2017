@@ -1,8 +1,13 @@
 
 INPUT_PATH="$1"
 OUTPUT_PATH="$2"
-GPU=3
+GPU=1
 MODEL="$3"
+if [ ! -d "$OUTPUT_PATH" ]
+then
+  mkdir "$OUTPUT_PATH"
+fi
+
 
 ls -1 $INPUT_PATH | while read f 
 do  

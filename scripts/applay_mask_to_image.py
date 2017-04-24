@@ -6,7 +6,7 @@ import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
 
 import scipy.ndimage
 from scipy import misc
-import matplotlib.pyplot as plt
+
 from skimage import measure, morphology
 from PIL import Image, ImageDraw
 from skimage.morphology import ball, binary_erosion, binary_dilation

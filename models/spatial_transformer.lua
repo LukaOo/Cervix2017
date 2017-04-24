@@ -131,7 +131,7 @@ function CreateLocalizationNet(cinput_planes)
     nn.BatchNormalization(512)
     net:add(nn.ReLU(true))
     -- add final 
-    local regression = nn.Linear(256, 6)
+    local regression = nn.Linear(512, 6)
     regression.weight:zero()
     regression.bias = torch.Tensor({1,0,0,0,1,0})
     net:add(regression)

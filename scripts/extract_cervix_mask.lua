@@ -18,6 +18,7 @@ opt = lapp[[
    --use_optnet               (default 0)           use memory optimisation by optnet
    --image_size               (default 512)         neural network image size
    -b,--batch_size            (default 6)           size of batch
+   -t,--threshold             (default 0.2)         probability threshold
 ]]
 
 print(opt)
@@ -129,13 +130,13 @@ for i=1, #files_list do
     input = image.scale(input, opt.image_size, opt.image_size)
     input = input:reshape(1, input:size(1), input:size(2), input:size(3)):cuda()
     local mask = model:forward(input):clone():double()
-    mask[torch.gt(mask, 0.5)] = 1
-    mask[torch.lt(mask, 0.4999999)] = 0
+    mask[torch.ge(mask, opt.threshold)] = 1
+    mask[torch.lt(mask, opt.threshold)] = 0
     
     mask = image.scale(mask:reshape(1,mask:size(3), mask:size(4)), input_size[3], input_size[2], 'bicubic')
     
-    mask[torch.gt(mask, 0.5)] = 1
-    mask[torch.lt(mask, 0.4999999)] = 0
+    mask[torch.ge(mask, opt.threshold)] = 1
+    mask[torch.lt(mask, opt.threshold)] = 0
     
     write_mask(opt.out .. '/' .. files_list[i] .. '.h5', mask:float())
     collectgarbage()
