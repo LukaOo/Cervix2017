@@ -218,8 +218,11 @@ UpSample(unet)                            -- 64x512x512
 ConvBNReLU(unet, 64, 32, 'relu_5_1')
 ConvBN(unet, 32, 1, 'relu_5_1')
 
--- unet:add( nn.HardTanh(0, 1, true) )
-unet:add(nn.Sigmoid())
+if opt.criterion == 'Dice' then
+    unet:add( nn.HardTanh(0, 1, true) )
+else 
+    unet:add(nn.Sigmoid())
+end
 
 --vgg:add( nn.GradientDebug('end_of_resnet') )
 

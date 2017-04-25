@@ -3,7 +3,7 @@
 # First parameter is output path
 ########
 GPU=2,3
-SAVE_PATH=./unet_segmenter_bce
+SAVE_PATH=./unet_segmenter_bce_blur
 CONTINUE=""
 LearningRateDecay=1e-4
 LearningRate=0.01

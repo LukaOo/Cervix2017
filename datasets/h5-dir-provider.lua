@@ -92,18 +92,17 @@ do
 
               local rot_angle = torch.uniform(-179, 179)
               local minScale, maxScale   = self.image_size * 0.8, self.image_size * 1.3 
-              local minTranslate, maxTranslate = -30, 30
-              
-              if  torch.uniform() < 0.5 then 
-                  self.flip       = 1
-              end
+              local minTranslate, maxTranslate = -10, 10
+              local minBlur, maxBlur           =  15, 30
 
               return transform.Compose{
-                      transform.HorizontalFlip(self.flip),
+                      transform.HorizontalFlip(0.5),
+                      transform.VerticalFlip(0.5),
                       transform.Rotation(rot_angle),
  		                  transform.RandomScale(minScale, maxScale),
                       transform.CenterCrop(self.image_size, 68),
                       transform.Translate(minTranslate, maxTranslate),
+                      transform.Blur(0.1, minBlur, maxBlur),
                       transform.ColorJitter({
                                   brightness = 0.4,
                                   contrast = 0.4,

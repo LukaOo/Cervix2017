@@ -3,6 +3,7 @@ require 'optim'
 require 'nn'
 require 'stn'
 require 'dpnn'
+require 'models/gradient_decrease'
 local utils=require 'utils'
 
 -- dofile './provider.lua'
@@ -98,7 +99,7 @@ if opt.use_optnet == 1 then
 end
 
 else
-   print (c.cyan'Loading model')
+   print (c.cyan'Loading model', opt.continue)
    model = torch.load(opt.continue)
 end
  
