@@ -72,13 +72,6 @@ local model = nil
 if opt.continue == '' then
 model = cast(dofile('models/'..opt.model..'.lua'))
 
-
-if opt.backend == 'cudnn' then
-   require 'cudnn'
-   print ('Converting to cudnn')
-   cudnn.convert(model, cudnn)
-end
-
 --utils.InitNetwork(model, true)
 
 if opt.use_optnet == 1 then
@@ -100,9 +93,14 @@ end
 
 else
    print (c.cyan'Loading model', opt.continue)
-   model = torch.load(opt.continue)
+   model = cast(torch.load(opt.continue))
 end
- 
+
+if opt.backend == 'cudnn' then
+   require 'cudnn'
+   print ('Converting to cudnn')
+   cudnn.convert(model, cudnn)
+end
 gpus = torch.range(1, cutorch.getDeviceCount()):totable()
 print ('Gpus', gpus)
 

@@ -56,8 +56,8 @@ do
           
               local minBlur, maxBlur  =  15, 30
               
-              return transform.Compose{
-                      transform.Blur(0.1, minBlur, maxBlur),
+              return transform.Compose{                      
+                      transform.Blur(0.2, minBlur, maxBlur),
                       transform.ColorJitter({
                                   brightness = 0.4,
                                   contrast = 0.4,

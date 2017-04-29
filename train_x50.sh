@@ -3,8 +3,8 @@
 # First parameter is output path
 ########
 GPU=1
-SAVE_PATH=./cervix_classifier_transfer_learning
-RESNET=resnet-34
+SAVE_PATH=./cervix_classifier_transfer_learning_50
+RESNET=resnet-50
 CONTINUE=""
 LearningRateDecay=1e-4
 LearningRate=0.01

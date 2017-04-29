@@ -289,11 +289,11 @@ function M.HorizontalFlip(prob)
       if torch.uniform() < prob then
         if type(input) == 'table' then
             assert(#input == 2)
-	    input[1] = image.hflip(input[1])
-	    input[2] = image.hflip(input[2])
+            input[1] = image.hflip(input[1])
+	          input[2] = image.hflip(input[2])
          else
             input = image.hflip(input)
-		 end
+		    end
       end
       return input
    end
@@ -314,6 +314,8 @@ function M.Blur(prob, min, max)
          local B = math.random(min,max)
          local K = image.gaussian(B)
          input = image.convolve(input,K,'same')
+         local imin, imax = torch.min(input), torch.max(input)
+         input = (input - imin) / (imax-imin)
       end
       return input
    end
@@ -324,11 +326,11 @@ function M.Rotation(deg)
       if deg ~= 0 then
 	     grad = (torch.uniform() - 0.5) * deg * math.pi / 180
 	     if type(input) == 'table' then
-		    assert(#input == 2)
-		    input[1] = image.rotate(input[1], grad, 'bilinear')
-		    input[2] = image.rotate(input[2], grad, 'bilinear')
-         else
-		     input     = image.rotate(input, grad, 'bilinear')
+		      assert(#input == 2)
+		      input[1] = image.rotate(input[1], grad, 'bilinear')
+		      input[2] = image.rotate(input[2], grad, 'bilinear')
+       else
+		      input     = image.rotate(input, grad, 'bilinear')
 	     end
       end
       return input

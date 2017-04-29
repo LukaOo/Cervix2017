@@ -96,13 +96,13 @@ do
               local minBlur, maxBlur           =  15, 30
 
               return transform.Compose{
+--                      transform.Blur(0.2, minBlur, maxBlur),
                       transform.HorizontalFlip(0.5),
                       transform.VerticalFlip(0.5),
                       transform.Rotation(rot_angle),
  		                  transform.RandomScale(minScale, maxScale),
                       transform.CenterCrop(self.image_size, 68),
                       transform.Translate(minTranslate, maxTranslate),
-                      transform.Blur(0.1, minBlur, maxBlur),
                       transform.ColorJitter({
                                   brightness = 0.4,
                                   contrast = 0.4,
@@ -135,16 +135,19 @@ do
     function Hdf5Provider:__sub_indices(v, permutate)
       local _input   = {}
       local _target  = {}
+      self.item_paths = {}
       local permutate = permutate or false
       
       for im_idx =1, v:size(1) do
         -- read input and target
         local target, k = self.list[v[im_idx]][1], self.list[v[im_idx]][2]
-        
-        local input, target =  self:get_tensors(self:get_paths(self.classes_table[target][k], target))
+        local item_name = self:get_paths(self.classes_table[target][k], target)
+          
+        local input, target =  self:get_tensors(item_name, target)
+      
         _input[im_idx]  =  input
         _target[im_idx] =  target
-        
+        self.item_paths[im_idx] = item_name  
       end    
       if #_input > 0 then
         _input  = torch.cat(_input, 1)

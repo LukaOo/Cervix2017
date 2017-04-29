@@ -8,7 +8,8 @@ cudnn = require 'cudnn'
 
 local MODEL_FILE = './pretrained/'.. net_config.model_file
 local class_count = net_config.class_count
-local gradient_decrease = net_config.gradiend_decrease or 0.1 
+local gradient_decrease = net_config.gradiend_decrease or 0.1
+local fc_dropout        = net_config.fc_dropout or 0.3
 
 local resnet = torch.load(MODEL_FILE)
 local linear_input_size = 0
@@ -20,7 +21,7 @@ for i,lineria in ipairs(resnet:findModules('nn.Linear'))  do
 end
 
 
-local last_layer_size = 512
+local last_layer_size = linear_input_size
 
 -- 
 -- Add final classificator
@@ -31,7 +32,7 @@ local classifier = nn.Sequential()
       classifier:add(nn.Linear( linear_input_size, last_layer_size))
       classifier:add(nn.BatchNormalization(last_layer_size)) 
       classifier:add(nn.ReLU(true))
-      classifier:add(nn.Dropout(0.3))
+      classifier:add(nn.Dropout(fc_dropout))
       classifier:add(nn.Linear(last_layer_size, class_count ) )
 
 
