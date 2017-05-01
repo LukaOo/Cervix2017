@@ -56,7 +56,6 @@ function M.Translate(min, max)
    end
 end
 
-
 -- Scales the smaller edge to size
 function M.Scale(size, interpolation)
    interpolation = interpolation or 'bicubic'
@@ -95,18 +94,6 @@ function M.SpatialRegionDropout(p)
    end  
 end
 
-function M.MakeMonochromeGreenChannel(p)
-   local prob = p
-   return function(input)
-        if  torch.uniform() < prob then 
-            grayscale = (input[1] * 0.21 + input[2] * 0.72 + input[3] * 0.07):reshape(1, input:size(2), input:size(3))
-            zerochannel = torch.DoubleTensor(1,input:size(2), input:size(3)):zero()
-            input = torch.cat({zerochannel, grayscale, zerochannel}, 1)
-        end
-       return input
-   end  
-end
-
 -- Crop to centered rectangle
 function M.CenterCrop(size, padding)
    padding = padding or 0
@@ -118,17 +105,17 @@ function M.CenterCrop(size, padding)
              :narrow(2, padding+1, i:size(2))
              :narrow(3, padding+1, i:size(3))
              :copy(i)
-        i = temp
+         i = temp
 	if type(input) == 'table' then
 	   input[1] = temp
-	   temp = input[2].new(1, input[2]:size(2) + 2*padding, input[2]:size(3) + 2*padding)
-           temp:zero()
+	   temp = input[2].new(input[2]:size(1), input[2]:size(2) + 2*padding, input[2]:size(3) + 2*padding)
+     temp:zero()
                :narrow(2, padding+1, input[2]:size(2))
                :narrow(3, padding+1, input[2]:size(3))
                :copy(input[2])
-	       input[2] = temp
+     input[2] = temp
 	 else
-	       input = temp
+     input = temp
 	 end
       end
 
@@ -239,8 +226,8 @@ function M.RandomScale(minSize, maxSize)
 	  local r = nil
       if type(input) == 'table' then
 	     r = {}
-		 r[1] = image.scale(input[1], targetW, targetH, 'bicubic')
-		 r[2] = image.scale(input[2], targetW, targetH, 'bicubic')
+       r[1] = image.scale(input[1], targetW, targetH, 'bicubic')
+       r[2] = image.scale(input[2], targetW, targetH, 'bicubic')
 	  else
 	     r = image.scale(input, targetW, targetH, 'bicubic')
 	  end
@@ -304,6 +291,14 @@ function M.VerticalFlip(prob)
       if torch.uniform() < prob then
          input = image.vflip(input)
       end
+      return input
+   end
+end
+
+function M.MinMaxNorm()
+   return function(input)
+      local imin, imax = torch.min(input), torch.max(input)
+      input = (input - imin) / (imax-imin)
       return input
    end
 end
@@ -443,6 +438,24 @@ function M.ColorJitter(opt)
    end
 
    return M.RandomOrder(ts)
+end
+
+
+function M.MakeMonochromeGreenChannel(p)
+   local prob = p
+   return function(input)
+        if  torch.uniform() < prob then
+            local gs = nil
+            if torch.uniform() < 50 then
+               gs = (input[1] * 0.21 + input[2] * 0.72 + input[3] * 0.07):reshape(1, input:size(2), input:size(3))
+            else
+               gs = (input[1] * 0.299 + input[2] * 0.587 + input[3] * 0.114):reshape(1, input:size(2), input:size(3))
+            end
+            zerochannel = torch.DoubleTensor(1,input:size(2), input:size(3)):zero()
+            input = torch.cat({zerochannel, gs, zerochannel}, 1)
+        end
+       return input
+   end  
 end
 
 return M

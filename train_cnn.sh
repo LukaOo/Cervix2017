@@ -2,12 +2,14 @@
 #######
 # First parameter is output path
 ########
-GPU=2,3
-SAVE_PATH=./unet_segmenter_bce_v2
+GPU=1
+SAVE_PATH=./cervix_classifier_transfer_cnn
+RESNET=NA
 CONTINUE=""
 LearningRateDecay=1e-4
 LearningRate=0.01
-MODEL=unet_with_resnet
+MODEL=cnn-classifier
+#_spatial_transformer
 
 iter=0
 if [ "$1" == "continue" ]; then
@@ -34,21 +36,20 @@ if [ $iter -gt 0 ]; then
 fi
 # start train
 export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
- -i ./data2/unet_ts/ \
+ -i ./data2/nn_ts/ \
  -s $SAVE_PATH \
- -b 6 \
+ -b 10 \
  -r $LearningRate \
  --learningRateDecay $LearningRateDecay \
  --model $MODEL \
- --net_config "{cinput_planes=3, image_size=512, class_count=3}" \
- --provider_config "{provider='datasets/h5-mask-provider', image_size=512}" \
+ --net_config "{cinput_planes=3, image_size=224, class_count=3 }" \
+ --provider_config "{provider='datasets/h5-dir-provider', image_size=224}" \
  --use_optnet 0 \
  --epoch_step 100 \
  --max_epoch 100000 \
  --optim sgd \
- --criterion SpatialBCE \
- --backend cudnn $CONTINUE \
- --checkpoint ./checkpoints 
+ --backend cudnn $CONTINUE 
+ # --checkpoint ./checkpoints
  #--continue ./VGG_LUNG_AUG_SLarge/checkpoint.t7 \
  #--min_save_error -2.08
 

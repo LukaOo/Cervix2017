@@ -29,7 +29,8 @@ opt = lapp[[
    --checkpoint               (default '')         use path for checkpoints
    --continue                 (default '')         use model to continue learning
    --save_epoch               (default 10)         save checkpoints of neural net each N epoch
-   --criterion                (default 'CrossEntropy') criterion CrossEntropy|Dice
+   --criterion                (default 'CrossEntropy') criterion CrossEntropy|Dice|SpatialBCE|MCE|PL
+   --perceptual_config        (default nil)        perceptual criterion configuration
 ]]
 
 print(opt)
@@ -131,7 +132,7 @@ print('Will save at '..opt.save)
 
 paths.mkdir(opt.save)
 testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
-if opt.criterion == 'Dice' or opt.criterion == 'SpatialBCE' then
+if opt.criterion == 'Dice' or opt.criterion == 'SpatialBCE' or opt.criterion == 'MSE' then
    testLogger:setNames{opt.criterion.. ' loss (train set)', opt.criterion..' loss (test set)'}
 else  
    testLogger:setNames{'Mean class accuracy (train set)', 'Mean class accuracy (test set)', 'Train error', 'Test error'}
@@ -152,6 +153,16 @@ else
      if opt.criterion == 'SpatialBCE' then
         require 'criterions/SpatialBCECriterion'
         criterion = cast( nn.SpatialBCECriterion()) --nn.DICECriterion())
+     else
+       if opt.criterion == 'MSE' then
+          criterion = cast( nn.MSECriterion())
+       else
+          if opt.criterion == 'PL' then
+            require 'criterions/perceptual_loss_model'
+            perceptual_config = loadstring(" return " .. opt.perceptual_config) ()
+            criterion = cast( nn.PerceptualLossCriterion(perceptual_config, opt.batchSize) )
+          end   
+       end
      end
   end
 end
@@ -197,8 +208,6 @@ function train()
 
     local inputs, targets = trainData:get_next_batch()
 	
-
-    
 
     inputs  = cast(inputs)
     targets = cast(targets) 

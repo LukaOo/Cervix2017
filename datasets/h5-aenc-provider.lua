@@ -54,17 +54,20 @@ do
     function Hdf5Provider:augment_input()
         if self.ds_name == 'train' then
           
-              local minBlur, maxBlur  =  15, 30
+              local minBlur, maxBlur  =  15, 40
+              local minScale, maxScale   = 224/4, 224
               
-              return transform.Compose{                      
-                      -- transform.Blur(0.2, minBlur, maxBlur),
-                      transform.ColorJitter({
-                                  brightness = 0.4,
-                                  contrast = 0.4,
-                                  saturation = 0.4,
-                              }),                      
-                      transform.Lighting(0.1, pca.eigval, pca.eigvec),
-                      transform.MakeMonochromeGreenChannel(0.1),
+              return transform.Compose{
+                      transform.RandomScale(minScale, maxScale), -- rescale distortion immitation
+                      transform.Scale(224),
+                      transform.Blur(0.3, minBlur, maxBlur),
+ --                     transform.ColorJitter({
+ --                                 brightness = 0.4,
+ --                                 contrast = 0.4,
+ --                                 saturation = 0.4,
+ --                             }),                      
+ --                     transform.Lighting(0.1, pca.eigval, pca.eigvec),
+                      transform.MakeMonochromeGreenChannel(0.3),
                       transform.AddNoise(0.05),
                     }
         else
@@ -79,9 +82,9 @@ do
         self.flip = 0
         if self.ds_name == 'train' then
 
-              local rot_angle = torch.uniform(-20, 20)
-              local minScale, maxScale   = 512*0.8, 512 * 1.3 
-              local minTranslate, maxTranslate = -20, 20
+              local rot_angle = torch.uniform(-170, 170)
+              local minScale, maxScale   = 224*0.8, 224 * 1.3 
+              local minTranslate, maxTranslate = -40, 40
               if  torch.uniform() < 0.5 then 
                   self.flip       = 1
               end
@@ -90,8 +93,9 @@ do
                       transform.HorizontalFlip(self.flip),
                       transform.Rotation(rot_angle),
  		                  transform.RandomScale(minScale, maxScale),
-                      transform.CenterCrop(512, 54),
+                      transform.CenterCrop(224, 45),
                       transform.Translate(minTranslate, maxTranslate),
+                      transform.MinMaxNorm()
                     } 
  
         else
@@ -202,24 +206,20 @@ do
     end
 
     function Hdf5Provider:get_tensors(path_input)
-          local h5_file = hdf5.open(path_input)
           local augmentation = self:augment()
-          local fld = 'image'
-          
+
           -- get images
-          local input  =  h5_file:read( fld ):all():clone():double()/255.0
-          local target =  h5_file:read('mask'):all():clone():double() /255.0
-          input = augmentation({input, target:reshape(1, target:size(1), target:size(2))})
-          target = input[2]
-          input  = input[1]
-          -- agment input only, add noise and jitter collors
-          input =  resize_tensor( self.input_augmentation(input) )
-          target = resize_tensor(target)
-          -- normalize target to 0-1
-          target[torch.gt(target, 0.499999999)] = 1
-          target[torch.lt(target, 0.5)] = 0
+          local input  = image.load(path_input)
+          input = augmentation(input)
+          local target = input:clone()
           
-          h5_file:close()
+          -- augment input only, add noise and jitter collors 
+          if  torch.uniform() < 0.9 then 
+              input =  self.input_augmentation(input)
+          end
+          input =  resize_tensor( input )
+          target = resize_tensor(target)
+ 
         return input, target
     end
 end    

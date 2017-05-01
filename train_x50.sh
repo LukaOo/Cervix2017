@@ -10,8 +10,8 @@ LearningRateDecay=1e-4
 LearningRate=0.01
 MODEL=resnet-xxx-fb
 #_spatial_transformer
-
-iter=0
+FC_CONFIG=',fc={{size=2048,bn=true,lrelu=0.1,dropout=0.3},{size=1024,bn=true,lrelu=0.1,dropout=0.3},{size=512,bn=true,lrelu=0.1,dropout=0.3}}'
+iter=0    
 if [ "$1" == "continue" ]; then
    CONTINUE="--continue $SAVE_PATH/checkpoint.t7"
    iter=1
@@ -42,7 +42,7 @@ export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
  -r $LearningRate \
  --learningRateDecay $LearningRateDecay \
  --model $MODEL \
- --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', localization_resnet=false}" \
+ --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', localization_resnet=false $FC_CONFIG}" \
  --provider_config "{provider='datasets/h5-dir-provider', image_size=224}" \
  --use_optnet 0 \
  --epoch_step 100 \
