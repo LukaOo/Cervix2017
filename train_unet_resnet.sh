@@ -3,11 +3,11 @@
 # First parameter is output path
 ########
 GPU=2,3
-SAVE_PATH=./unet_segmenter_dice_v2
+SAVE_PATH=./unet_segmenter_rn_101_bce_v4
 CONTINUE=""
 LearningRateDecay=1e-4
-LearningRate=0.01
-MODEL=unet_with_resnet
+LearningRate=8e-5
+MODEL=image_segmenter_resnet
 
 iter=0
 if [ "$1" == "continue" ]; then
@@ -40,13 +40,13 @@ export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
  -r $LearningRate \
  --learningRateDecay $LearningRateDecay \
  --model $MODEL \
- --net_config "{cinput_planes=3, image_size=512, class_count=3}" \
+ --net_config "{cinput_planes=3, image_size=512, class_count=3, resnet='101'}" \
  --provider_config "{provider='datasets/h5-mask-provider', image_size=512}" \
  --use_optnet 0 \
  --epoch_step 100 \
  --max_epoch 100000 \
- --optim sgd \
- --criterion Dice \
+ --optim adam \
+ --criterion SpatialBCE \
  --backend cudnn $CONTINUE \
  --checkpoint ./checkpoints 
  #--continue ./VGG_LUNG_AUG_SLarge/checkpoint.t7 \

@@ -15,6 +15,7 @@ opt = lapp[[
    -b,--batchSize             (default 128)         batch size
    -r,--learningRate          (default 1)           learning rate
    --learningRateDecay        (default 1e-7)        learning rate decay
+   --lr_decay_sheduler        (default {})          learning rate decay sheduler {[10]=0.5}
    --weightDecay              (default 0.0005)      weightDecay
    -m,--momentum              (default 0.9)         momentum
    --epoch_step               (default 25)          epoch step
@@ -43,6 +44,7 @@ end
 
 provider_config = loadstring(" return " .. opt.provider_config) ()
 net_config = loadstring(" return " .. opt.net_config)()
+lr_decay_sheduler = loadstring(" return " .. opt.lr_decay_sheduler)()
 
 local function cast(t)
    if opt.type == 'cuda' then
@@ -87,7 +89,7 @@ if opt.use_optnet == 1 then
           mod_input = cast(torch.rand( 1, net_config.cinput_planes, net_config.image_size, net_config.image_size))
       end
    end
-   mod_opts = {inplace=true, mode='training'}
+   mod_opts = {inplace=false, mode='training'}
    optnet.optimizeMemory(model, mod_input, mod_opts)
    print ("Count used memory after: ", optnet.countUsedMemory(model))
 end
@@ -194,6 +196,9 @@ function train()
 
   -- drop learning rate every "epoch_step" epochs
   --if epoch % opt.epoch_step == 0 then optimState.learningRate = optimState.learningRate/2 end
+  if lr_decay_sheduler ~= nil and #lr_decay_sheduler > 0 and lr_decay_sheduler[epoch] ~= nil then
+    optimState.learningRate = optimState.learningRate * lr_decay_sheduler[epoch]
+  end
   
   print(c.blue '==>'.." online epoch # " .. epoch .. ' [batchSize = ' .. opt.batchSize .. ']')
 
@@ -219,10 +224,12 @@ function train()
       
       local outputs = dpt:forward(inputs)
       
-	  	if opt.checkpoint ~= nil and opt.checkpoint ~= '' and optimState.evalCounter~= nil and optimState.evalCounter % 50 == 0 then
-        torch.save(opt.checkpoint .. '/check_point.' .. optimState.evalCounter, inputs:float())
-        torch.save(opt.checkpoint .. '/check_point_t.' .. optimState.evalCounter, targets:float())
-        torch.save(opt.checkpoint .. '/check_point_o.' .. optimState.evalCounter, outputs:float())
+	  	if opt.checkpoint ~= nil and opt.checkpoint ~= '' 
+        and ( (optimState.evalCounter~= nil and optimState.evalCounter % 50 == 0) or (optimState.t ~= nil and optimState.t % 50 == 0) )  then
+        local it = optimState.evalCounter or optimState.t
+        torch.save(opt.checkpoint .. '/check_point.' .. it, inputs:float())
+        torch.save(opt.checkpoint .. '/check_point_t.' .. it, targets:float())
+        torch.save(opt.checkpoint .. '/check_point_o.' .. it, outputs:float())
       end
       
       local f = criterion:forward(outputs, targets)

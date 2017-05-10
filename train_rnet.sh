@@ -2,12 +2,12 @@
 #######
 # First parameter is output path
 ########
-GPU=2
-SAVE_PATH=./restorenet
+GPU=3
+SAVE_PATH=./restorenet.v4
 CONTINUE=""
 LearningRateDecay=1e-4
-LearningRate=0.01
-MODEL=image_restoration
+LearningRate=1e-4
+MODEL=image_restoration_resnet
 
 iter=0
 if [ "$1" == "continue" ]; then
@@ -45,7 +45,7 @@ export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
  --use_optnet 0 \
  --epoch_step 100 \
  --max_epoch 100000 \
- --optim sgd \
+ --optim adam \
  --criterion PL \
  --perceptual_config  '{ normalize_grad=true, calc_only_target=false, model = "perceptual_loss_model", model_prototxt="./pretrained/VGG_ILSVRC_19_layers_deploy.prototxt", model_file="./pretrained/VGG_ILSVRC_19_layers.caffemodel", layer_name={["relu4_1"]=1, ["relu3_2"]=1, ["relu2_1"]=1}, error_weight=1.0 } ' \
  --backend cudnn $CONTINUE \

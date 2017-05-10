@@ -31,6 +31,10 @@ parser.add_option("-o", "--output", dest="output",
 parser.add_option("-p", "--preffix", dest="preffix", default='',
                   help="Preffix to add to each output file name")
                   
+parser.add_option("-s", "--osize", dest="osize", default=512, type="int",
+                  help="Output image size")                  
+                  
+                  
 (options, args) = parser.parse_args()
 
 IMAGES_BASE_PATH = options.input
@@ -90,8 +94,8 @@ if __name__ == "__main__":
                 if mask is None:
                    print "Miss: " + f
                    continue
-                image = scipy.misc.imresize(image, (512, 512, 3)).transpose((2, 0, 1))
-                mask  = scipy.misc.imresize(mask, (512, 512))
+                image = scipy.misc.imresize(image, (options.osize, options.osize, 3)).transpose((2, 0, 1))
+                mask  = scipy.misc.imresize(mask, (options.osize, options.osize))
                 ofile = h5py.File(OUTPUT_MASK_PATH + '/' + mf+'_' + options.preffix + f + '.h5', 'w')
                 ofile.create_dataset('mask',data=mask, compression='gzip')
                 ofile.create_dataset('image', data=image, compression='gzip')

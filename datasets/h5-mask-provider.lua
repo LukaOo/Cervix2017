@@ -14,6 +14,7 @@ do
         self.InputPath = config.input_path    -- file with mask and images 
         self.batchSize = batchSize
         self.ds_name = config.data_set_name
+        self.image_size = config.image_size
         self.input_augmentation = self:augment_input()
         
         self.InputPath = self.InputPath .. '/' .. self.ds_name
@@ -80,7 +81,7 @@ do
         if self.ds_name == 'train' then
 
               local rot_angle = torch.uniform(-20, 20)
-              local minScale, maxScale   = 512*0.8, 512 * 1.3 
+              local minScale, maxScale   = self.image_size*0.8, self.image_size * 1.3 
               local minTranslate, maxTranslate = -20, 20
               if  torch.uniform() < 0.5 then 
                   self.flip       = 1
@@ -89,8 +90,8 @@ do
               return transform.Compose{
                       transform.HorizontalFlip(self.flip),
                       transform.Rotation(rot_angle),
- 		                  transform.RandomScale(minScale, maxScale),
-                      transform.CenterCrop(512, 54),
+ 		      transform.RandomScale(minScale, maxScale),
+                      transform.CenterCrop(self.image_size, 54),
                       transform.Translate(minTranslate, maxTranslate),
                     } 
  
@@ -188,7 +189,7 @@ do
        return _input, _target
     end
 
-    function Hdf5Provider:get_paths( file )
+    function Hdf5Provider:get_paths( file )                
         return string.format("%s/%s", self.InputPath, file)
     end
 

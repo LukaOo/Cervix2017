@@ -66,7 +66,7 @@ do
  --                                 contrast = 0.4,
  --                                 saturation = 0.4,
  --                             }),                      
- --                     transform.Lighting(0.1, pca.eigval, pca.eigvec),
+--                     transform.Lighting(0.1, pca.eigval, pca.eigvec),
                       transform.MakeMonochromeGreenChannel(0.3),
                       transform.AddNoise(0.05),
                     }
@@ -100,7 +100,7 @@ do
  
         else
               return transform.Compose{
-                     
+                
                     }
         end
     end
@@ -214,7 +214,7 @@ do
           local target = input:clone()
           
           -- augment input only, add noise and jitter collors 
-          if  torch.uniform() < 0.9 then 
+          if  torch.uniform() < 0.8 then 
               input =  self.input_augmentation(input)
           end
           input =  resize_tensor( input )
