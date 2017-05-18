@@ -55,10 +55,13 @@ do
     function Hdf5Provider:augment_input()
         if self.ds_name == 'train' then
           
-              local minBlur, maxBlur  =  15, 30
-              
+              local minBlur, maxBlur    =  15, 30
+              local minAlfa, maxAlfa    =  50, 100
+              local minSigma, maxSigma  =  5, 10
+
               return transform.Compose{                      
                       -- transform.Blur(0.2, minBlur, maxBlur),
+                      transform.ElasticTransform(0.1, minAlfa, maxAlfa, minSigma, maxSigma),
                       transform.ColorJitter({
                                   brightness = 0.4,
                                   contrast = 0.4,
@@ -67,6 +70,7 @@ do
                       transform.Lighting(0.1, pca.eigval, pca.eigvec),
                       transform.MakeMonochromeGreenChannel(0.1),
                       transform.AddNoise(0.05),
+                      transform.MinMaxNorm()
                     }
         else
               return transform.Compose{

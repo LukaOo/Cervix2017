@@ -28,7 +28,7 @@ local last_layer_size = linear_input_size
 -- Add final classificator
 --
 local classifier = nn.Sequential()
-      classifier:add(nn.GradientDecrease(gradient_decrease))
+      if gradient_decrease > 0 then classifier:add(nn.GradientDecrease(gradient_decrease)) end
 --      classifier:add(nn.Dropout(0.5))
 if fc_conf == nil then
       classifier:add(nn.Linear( linear_input_size, last_layer_size))

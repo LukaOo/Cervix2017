@@ -2,13 +2,13 @@
 #######
 # First parameter is output path
 ########
-GPU=1
-SAVE_PATH=./cervix_classifier_transfer_learning_34
+GPU=2
+SAVE_PATH=./cervix_classifier_rnet_34
 RESNET=resnet-34
 CONTINUE=""
 LearningRateDecay=1e-4
-LearningRate=0.01
-MODEL=resnet-xxx-fb
+LearningRate=1e-4
+MODEL=resnet-18
 #_spatial_transformer
 
 iter=0
@@ -36,7 +36,7 @@ if [ $iter -gt 0 ]; then
 fi
 # start train
 export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
- -i ./data2/nn_ts/ \
+ -i ./data/nn_ts_rest/ \
  -s $SAVE_PATH \
  -b 10 \
  -r $LearningRate \
@@ -47,9 +47,9 @@ export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
  --use_optnet 0 \
  --epoch_step 100 \
  --max_epoch 100000 \
- --optim sgd \
- --backend cudnn $CONTINUE 
- # --checkpoint ./checkpoints
+ --optim adam \
+ --backend cudnn $CONTINUE
+# --checkpoint ./checkpoints
  #--continue ./VGG_LUNG_AUG_SLarge/checkpoint.t7 \
  #--min_save_error -2.08
 

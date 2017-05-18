@@ -19,8 +19,16 @@ do
         self.batchSize = batchSize
         self.ds_name = config.data_set_name
         self.image_size = config.image_size or 224
-        self.preprocessor = self:preprocess()
+        self.cinput_planes = config.cinput_planes or 3
+        
         self.InputPath  = self.InputPath .. '/' .. config.data_set_name
+        self.issiames =  config.siames_input
+        self.dual_target = config.dual_target
+        if self.issiames == true then
+           self.preprocessor = self:preprocess_siames()
+        else
+           self.preprocessor = self:preprocess()
+        end
         
         self.classes_labels = self:getClassesList(self.InputPath)
         self.classes_table = {}
@@ -90,33 +98,88 @@ do
         self.flip = 0
         if self.ds_name == 'train' then
 
-              local rot_angle = torch.uniform(-179, 179)
+              local rot_angle = torch.uniform(-10, 10)
               local minScale, maxScale   = self.image_size * 0.8, self.image_size * 1.3 
               local minTranslate, maxTranslate = -10, 10
               local minBlur, maxBlur           =  15, 30
+              local minAlfa, maxAlfa           =  50, 100
+              local minSigma, maxSigma         =  5, 10
+              
+              if self.cinput_planes == 3 then
+                  return transform.Compose{
+    --                      transform.Blur(0.2, minBlur, maxBlur),
+                          transform.HorizontalFlip(0.5),
+                          transform.Rotation(rot_angle),
+                          transform.RandomScale(minScale, maxScale),
+                          transform.CenterCrop(self.image_size, 68),
+                          transform.Translate(minTranslate, maxTranslate),
+                          transform.ElasticTransform(0.3, minAlfa, maxAlfa, minSigma, maxSigma),
+                          transform.ColorJitter({
+                                      brightness = 0.4,
+                                      contrast = 0.4,
+                                      saturation = 0.4,
+                                  }),                      
+                          transform.Lighting(0.1, pca.eigval, pca.eigvec),
+                          transform.MinMaxNorm(),
+                          transform.RedSaturation(0.7),
+    --                      transform.MakeMonochromeGreenChannel(0.1),
+                          transform.ColorNormalize(meanstd),
+                          transform.AddNoise(0.05),
+                        } 
+               else
+                  return transform.Compose{
+    --                      transform.Blur(0.2, minBlur, maxBlur),
+                          transform.HorizontalFlip(0.5),
+                          transform.Rotation(rot_angle),
+                          transform.RandomScale(minScale, maxScale),
+                          transform.CenterCrop(self.image_size, 68),
+                          transform.Translate(minTranslate, maxTranslate),
+                          transform.AddNoise(0.05),
+                        } 
+               end
+ 
+        else
+              if self.cinput_planes == 3 then
+                return transform.Compose{
+                       transform.ColorNormalize(meanstd),
+                      }
+              else                      
+                return transform.Compose{                       
+                      }
+              end
+        end
+    end
+    
+  function Hdf5Provider:preprocess_siames()
 
+        if self.ds_name == 'train' then
+
+              local rot_angle = torch.uniform(-10, 10)
+              local minScale, maxScale   = self.image_size * 0.8, self.image_size * 1.3 
+              local minTranslate, maxTranslate = -10, 10
+              local minAlfa, maxAlfa           =  50, 100
+              local minSigma, maxSigma         =  5, 10
+              
               return transform.Compose{
---                      transform.Blur(0.2, minBlur, maxBlur),
                       transform.HorizontalFlip(0.5),
-                      transform.VerticalFlip(0.5),
                       transform.Rotation(rot_angle),
  		                  transform.RandomScale(minScale, maxScale),
                       transform.CenterCrop(self.image_size, 68),
                       transform.Translate(minTranslate, maxTranslate),
-                      transform.ColorJitter({
-                                  brightness = 0.4,
-                                  contrast = 0.4,
-                                  saturation = 0.4,
-                              }),                      
+                      transform.ElasticTransform(0.3, minAlfa, maxAlfa, minSigma, maxSigma),
+                      
                       transform.Lighting(0.1, pca.eigval, pca.eigvec),
-                      transform.MakeMonochromeGreenChannel(0.1),
-                      transform.ColorNormalize(meanstd),
+                      transform.MinMaxNorm(),
+                      transform.RedSaturation(0.7),
+                      
+                      transform.ColorNormalize(meanstd),                      
+                      
                       transform.AddNoise(0.05),
                     } 
  
         else
               return transform.Compose{
-                     transform.ColorNormalize(meanstd),
+                     transform.ColorNormalize(meanstd),                      
                     }
         end
     end
@@ -129,6 +192,38 @@ do
 
     function Hdf5Provider:size()
       return #self.list
+    end
+    
+    function Hdf5Provider:make_siames_input(input, target)
+       if self.issiames == true then
+         local input1 = input
+         local input2 = nil
+         local target2 = nil
+--         if self.ds_name == 'train' then
+             -- if train read new data sample
+--             local indicies = torch.randperm(#self.list):long():split(self.batchSize)
+--             input2, target2 = self:__sub_indices(indicies[1], true)
+--         else
+         input2 = input:clone()
+         local indices = torch.randperm(input2:size(1)):long()
+         input2  = input2:index(1,indices)
+         target2 = target:clone():index(1, indices)
+--         end
+         
+         local o_target = torch.abs(target - target2)
+         o_target[torch.gt(o_target, 0)] = -1
+         o_target[torch.eq(o_target, 0)] = 1
+         
+         if self.dual_target == true then
+             target = {target, o_target}
+         else
+             target = o_target
+         end
+         
+         input = {input1, input2}
+         
+       end
+       return input, target
     end
     
     -- sub sampling idexies from data set
@@ -165,7 +260,7 @@ do
         _target = nil
       end
       
-      return _input, _target
+      return _input, _target 
     end
   
     function Hdf5Provider:get_next_batch()
@@ -180,7 +275,7 @@ do
 
 
         self.batch_idx = self.batch_idx + 1
-        return _input, _target
+        return self:make_siames_input( _input, _target )
     end
 
     ---
@@ -198,7 +293,7 @@ do
         end
 
        self.batch_idx = self.batch_idx + 1
-       return _input, _target
+       return self:make_siames_input(  _input, _target )
     end
 
     function Hdf5Provider:get_paths( file, target )
@@ -218,9 +313,9 @@ do
     end
 
     function Hdf5Provider:get_tensors(path_input, target)
-          local img = image.load(path_input)
+          local img = image.load(path_input, self.cinput_planes)
           local fld = 'data'
-          
+          if img:dim() == 2 then img = img:reshape( 1, img:size(1), img:size(2)) end
           -- get images
           local input  = self.preprocessor( img )
           input = resize_tensor(input)

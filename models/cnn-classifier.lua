@@ -1,12 +1,36 @@
 require 'nn'
+local utils=require 'utils'
 
 local MaxPooling = nn.SpatialMaxPooling
 local AvgPooling = nn.SpatialAveragePooling
+local Convolution = nn.SpatialConvolution
+local LeakyReLU   = nn.LeakyReLU
+local SBatchNorm = nn.SpatialBatchNormalization
 
 local function ConvBNReLU(net, nInputPlane, nOutputPlane, name)
   net:add(nn.SpatialConvolution(nInputPlane, nOutputPlane, 3,3, 1,1, 1,1))
   net:add(nn.SpatialBatchNormalization(nOutputPlane))
   net:add(nn.ReLU(true))
+  return net
+end
+
+local function ConvBNLeakyReLU7x7_check(net, nInputPlane, nOutputPlane, name)
+  net:add(nn.SpatialConvolution(nInputPlane, nOutputPlane, 7,7, 32,32, 3,3))
+  net:add(SBatchNorm(nOutputPlane))
+  net:add(nn.LeakyReLU(0.1, true))
+ -- net:add(nn.SpatialDropout(0.3))
+  return net
+end
+
+function CreateCheckNet(cinput_planes)
+  local net = nn.Sequential()
+  ConvBNLeakyReLU7x7_check(net, cinput_planes,  64, 'local_relu_1_1')
+  net:add(AvgPooling(7, 7, 1, 1))
+  net:add(nn.View(-1, 64))
+  net:add(nn.Linear(64, 64)) 
+  net:add(nn.BatchNormalization(64))
+  net:add(nn.ReLU(true))
+  net:add( nn.Linear(64, 3) ) 
   return net
 end
 
@@ -41,6 +65,7 @@ function CreateCNNNet(cinput_planes)
     return net
 end
 
-local cnn = CreateCNNNet(3)
+local cnn = CreateCheckNet(3) -- CreateCNNNet(3)
+utils.InitNetwork(cnn)
 
 return cnn

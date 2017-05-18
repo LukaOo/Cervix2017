@@ -91,7 +91,7 @@ local function resnext_bottleneck_B(n, stride)
             :add(s)
             :add(shortcut(nInputPlane, n * 4, stride)))
          :add(nn.CAddTable(true))
-         :add(LeakyReLU(0.1, true))
+ --        :add(LeakyReLU(0.1, true))
 end
    
 -- The basic residual layer block for 18 and 34 layer network, and the
@@ -170,6 +170,18 @@ local function ConvBNLeakyReLU7x7(net, nInputPlane, nOutputPlane, name)
   return net
 end
 
+local function UBlock(module, dropout)   
+  
+   local c1 = nn.Identity() 
+   local s = nn.Sequential()
+      s:add(nn.ConcatTable():add(module):add(c1))
+   s:add(nn.CAddTable(true))
+   
+   if dropout ~= nil and dropout > 0 then
+      s:add(nn.SpatialDropout(dropout))
+   end
+   return s
+end
 
 function CreateResNet_50(cinput_planes, blocks_cnt)
     local net = nn.Sequential()
@@ -215,11 +227,11 @@ end
 function CreateResNetXt_50(cinput_planes)
     local net = nn.Sequential()
     iChannels = 64
-    ConvBNReLU(net, cinput_planes, 64, 2)        -- 112x112
+    ConvBNReLU(net, cinput_planes, 64, 2)              -- 112x112
     
-    ResNetBNBlock_B(net, 64, 3, 2)               -- 56x56
+    ResNetBNBlock_B(net, 64, 3, 2)                     -- 56x56
     
-    ResNetBNBlock_B(net, 128, 4, 2)                -- 28 x 28
+    ResNetBNBlock_B(net, 128, 4, 2)                    -- 28 x 28
     
     ResNetBNBlock_B(net, 256, 6, 2)                    -- 14 x 14 
 
@@ -252,6 +264,98 @@ function CreateResNetXt_50(cinput_planes)
     return net
 end
 
+function CreateResNetXt_50E(cinput_planes)
+    local net = nn.Sequential()
+    iChannels = 64
+    ConvBNReLU(net, cinput_planes, 64, 1)              -- 112x112
+    
+    ResNetBNBlock_B(net, 64, 2, 2)                     -- 112
+    
+    ResNetBNBlock_B(net, 128, 3, 2)                    -- 56
+    
+    ResNetBNBlock_B(net, 256, 4, 2)                    -- 28 
+
+    ResNetBNBlock_B(net, 512, 6, 2)                    -- 14
+    
+    ResNetBNBlock_B(net, 512, 6, 1)                  --  
+    net:add( UpSampling({oheight=28, owidth=28}) )    --  28
+    
+    ResNetBNBlock_B(net, 256, 4, 1)                  --  
+    net:add( UpSampling({oheight=56, owidth=56}) )     --  56
+    
+    ResNetBNBlock_B(net, 128, 3, 1)
+    net:add( UpSampling({oheight=112, owidth=112}) )    -- 112
+    
+    ResNetBNBlock_B(net, 64, 2, 1)
+    net:add( UpSampling({oheight=224, owidth=224}) )   --  224 x 224
+    
+    ConvBNReLU(net, 256, 32, 1)
+    
+    Conv(net, 32, 1)
+    
+    if opt.criterion == 'Dice' then
+      net:add( nn.HardTanh(0, 1, true) )
+    else 
+      net:add(nn.Sigmoid())
+    end
+          
+    return net
+end
+
+function CreateResNetXt_50U(cinput_planes)
+    local net = nn.Sequential()
+    iChannels = 64
+    ConvBNReLU(net, cinput_planes, 64, 2)              -- 112x112
+    
+     ResNetBNBlock_B(net, 64, 3, 2)                     -- 56x56
+    
+       local ublock_1 = nn.Sequential()
+       ResNetBNBlock_B(ublock_1, 128, 4, 2)                    -- 28 x 28
+           
+       local ublock_2 = nn.Sequential()
+       ResNetBNBlock_B(ublock_2, 256, 18, 2)                    -- 14 x 14 
+       
+         local ublock_3 = nn.Sequential()
+         ResNetBNBlock_B(ublock_3, 512, 3, 2)                    -- 7 x 7
+    
+           local ublock_4 = nn.Sequential()
+           ResNetBNBlock_B(ublock_4, 512, 3, 1)                 --  
+           UBlock(ublock_4)
+           
+           ublock_4:add( UpSampling({oheight=14, owidth=14}) )    --  14 x 14
+         ublock_3:add(ublock_4)
+    
+         ResNetBNBlock_B(ublock_3, 256, 18, 1)                  -- 
+         UBlock(ublock_3)
+         ublock_3:add( UpSampling({oheight=28, owidth=28}) )     --  28 x 28
+    
+       ublock_2:add(ublock_3)
+       ResNetBNBlock_B(ublock_2, 128, 4, 1)
+       UBlock(ublock_2)
+       ublock_2:add( UpSampling({oheight=56, owidth=56}) )    -- 56 x 56
+    
+     ublock_1:add(ublock_2)
+     ResNetBNBlock_B(ublock_1, 64, 3, 1)
+     UBlock(ublock_1)
+     ublock_1:add( UpSampling({oheight=112, owidth=112}) )   --  112 x 112
+    
+    net:add(ublock_1)
+    ConvBNReLU(net, 256, 64, 1)
+    net:add( UpSampling({oheight=224, owidth=224}) )   -- 224x224
+    
+    ConvBNReLU(net, 64, 32, 1)
+    Conv(net, 32, 1)
+    
+    if opt.criterion == 'Dice' then
+      net:add( nn.HardTanh(0, 1, true) )
+    else 
+      net:add(nn.Sigmoid())
+    end
+          
+    return net
+end
+
+
 local cnn = nil
 if  net_config.resnet == 'xt_50' then
   cnn = CreateResNetXt_50(3)
@@ -259,7 +363,15 @@ else
   if  net_config.resnet == '101' then
       cnn = CreateResNet_50(3, 12)  -- resnet 101
   else
-      cnn = CreateResNet_50(3)      -- resnet 50
+   if  net_config.resnet == 'xt_50U' then
+      cnn = CreateResNetXt_50U(3)
+   else
+      if  net_config.resnet == 'xt_50E' then
+        cnn = CreateResNetXt_50E(3)
+      else
+        cnn = CreateResNet_50(3)      -- resnet 50
+      end
+   end
   end
 end
 

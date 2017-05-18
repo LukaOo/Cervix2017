@@ -41,13 +41,15 @@ local function basicblock(n, stride)
           s:add(SBatchNorm(n))
           s:add(LeakyReLU(0.1, true))
           s:add(Convolution(n,n,3,3, 1,1, 1,1))
-          s:add(SBatchNorm(n))
+          s:add(SBatchNorm(n))          
 
     return nn.Sequential()
      :add(nn.ConcatTable()
         :add(s)
         :add(shortcut(nInputPlane, n, stride)))
      :add(nn.CAddTable(true))
+     :add(LeakyReLU(0.1, true))
+     :add(nn.SpatialDropout(0.3))
 end
 
 -- Creates count residual blocks with specified number of features
@@ -57,7 +59,7 @@ local function layer(block, features, count, stride)
         local b = block(features, i == 1 and stride or 1)
           -- add relu after each residual block except last
  --       b:add(LeakyReLU(0.1, true))
-        b:add(nn.SpatialDropout(0.3))
+--        b:add(nn.SpatialDropout(0.3))
        s:add(b)
       end
   return s
@@ -126,7 +128,37 @@ function CreateResNet(cinput_planes, class_count)
     return net
 end
 
-local cnn = CreateResNet(net_config.cinput_planes, class_count)
+function CreateResNet34(cinput_planes, class_count)
+    local net = nn.Sequential()
+    
+    ConvBNLeakyReLU7x7(net, cinput_planes,  64, 'local_relu_1_1') -- 112 x 112
+    net:add(MaxPooling(3,3, 2,2, 1,1))     
+    
+    ResNetBlock(net, 64, 64, 3, 1)
+    --net:add(MaxPooling(2, 2, 2, 2):ceil())     -- 56  x 56
+   
+    ResNetBlock(net, 64, 128, 4, 2)
+    --net:add(MaxPooling(2, 2, 2, 2):ceil())     -- 28  x 28
+    
+    ResNetBlock(net, 128, 256, 6, 2)
+    --net:add(MaxPooling(2, 2, 2, 2):ceil())     -- 14 x 14 
+    
+    ResNetBlock(net, 256, 512, 3, 2)
+    net:add(AvgPooling(7, 7, 1, 1))            -- 512 features as output    
+    
+    net:add(nn.View(-1, 512))
+    net:add(nn.Linear(512, 512))    
+    net:add(nn.BatchNormalization(512))
+    net:add(nn.LeakyReLU(0.1, true))
+    net:add(nn.Dropout(0.3))
+    -- add final 
+    local classificator = nn.Linear(512, class_count)
+    net:add(classificator)
+    
+    return net
+end
+
+local cnn = CreateResNet34(net_config.cinput_planes, class_count)
 
 utils.InitNetwork(cnn)
 

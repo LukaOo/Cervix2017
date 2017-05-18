@@ -6,7 +6,7 @@ GPU=1
 SAVE_PATH=./cervix_classifier_transfer_learning_50
 RESNET=resnet-50
 CONTINUE=""
-LearningRateDecay=1e-4
+LearningRateDecay=1e-3
 LearningRate=0.01
 MODEL=resnet-xxx-fb
 #_spatial_transformer

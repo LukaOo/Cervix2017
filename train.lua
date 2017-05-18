@@ -32,6 +32,7 @@ opt = lapp[[
    --save_epoch               (default 10)         save checkpoints of neural net each N epoch
    --criterion                (default 'CrossEntropy') criterion CrossEntropy|Dice|SpatialBCE|MCE|PL
    --perceptual_config        (default nil)        perceptual criterion configuration
+   --ignore_state             (default 0 )         ignore states when load model to continie training
 ]]
 
 print(opt)
@@ -143,6 +144,7 @@ testLogger.showPlot = false
 
 parameters,gradParameters = dpt:getParameters()
 
+print (parameters:size(), gradParameters:size())
 
 print(c.blue'==>' ..' setting criterion ' .. opt.criterion)
 if opt.criterion == 'CrossEntropy' then
@@ -163,6 +165,18 @@ else
             require 'criterions/perceptual_loss_model'
             perceptual_config = loadstring(" return " .. opt.perceptual_config) ()
             criterion = cast( nn.PerceptualLossCriterion(perceptual_config, opt.batchSize) )
+          else
+            if opt.criterion == 'BCE' then
+              criterion = cast( nn.BCECriterion() )
+            else
+               if opt.criterion == 'Cosine' then
+                  criterion = cast( nn.CosineEmbeddingCriterion() )
+                else
+                   if opt.criterion == 'Dual' then                     
+                     criterion = cast( nn.ParallelCriterion():add(nn.CrossEntropyCriterion()):add(nn.HingeEmbeddingCriterion()) )
+                   end
+               end
+            end   
           end   
        end
      end
@@ -173,7 +187,7 @@ end
 
 
 print(c.blue'==>' ..' configuring optimizer')
-if opt.continue == '' then
+if opt.continue == '' or opt.ignore_state == 1 then
 optimState = {
   learningRate = opt.learningRate,
   weightDecay = opt.weightDecay,
@@ -182,6 +196,7 @@ optimState = {
 }
 
 else
+  print ('Loading state: ',  opt.continue .. '.ostat')
   optimState = torch.load(opt.continue .. '.ostat')
 end
 
@@ -190,19 +205,45 @@ if model.last_error ~= nil then
   last_error = model.last_error
 end
 
+local function get_step(optstate)
+   local step = optstate.t or optstate.evalCounter
+   step  = step or 0
+   return step
+end
+local function get_lr(optstate)
+   local step = get_step(optstate)
+   local lrd = optstate.learningRateDecay
+   local lr  = optstate.learningRate 
+   local clr = lr / (1 + step*lrd)   
+   return clr
+end
+
+local function cast_target(inputs)
+  
+    if type(inputs) == 'table' then
+       for ii=1, #inputs do
+          inputs[ii] = cast(inputs[ii])
+       end
+    else
+          inputs  = cast(inputs)
+    end
+    
+    return inputs
+end
+
 function train()
   dpt:training()
   epoch = epoch or 1
 
   -- drop learning rate every "epoch_step" epochs
   --if epoch % opt.epoch_step == 0 then optimState.learningRate = optimState.learningRate/2 end
-  if lr_decay_sheduler ~= nil and #lr_decay_sheduler > 0 and lr_decay_sheduler[epoch] ~= nil then
+  if lr_decay_sheduler ~= nil and lr_decay_sheduler[epoch] ~= nil then
     optimState.learningRate = optimState.learningRate * lr_decay_sheduler[epoch]
   end
   
   print(c.blue '==>'.." online epoch # " .. epoch .. ' [batchSize = ' .. opt.batchSize .. ']')
-
-
+  print(c.green " Epoch learning rate: ", optimState.learningRate, get_lr( optimState ), ' Real Iteration ' , get_step(optimState) )
+  
   local tic = torch.tic()
   local iters = opt.epoch_step <= 0 and trainData.cbatches or math.min(trainData.cbatches, opt.epoch_step )
   trainData:reset()
@@ -214,38 +255,62 @@ function train()
     local inputs, targets = trainData:get_next_batch()
 	
 
-    inputs  = cast(inputs)
-    targets = cast(targets) 
+    inputs = cast_target(inputs)
+    targets = cast_target(targets) 
 	
 
     local feval = function(x)
       if x ~= parameters then parameters:copy(x) end
-      gradParameters:zero()
+      dpt:zeroGradParameters()
       
       local outputs = dpt:forward(inputs)
       
 	  	if opt.checkpoint ~= nil and opt.checkpoint ~= '' 
         and ( (optimState.evalCounter~= nil and optimState.evalCounter % 50 == 0) or (optimState.t ~= nil and optimState.t % 50 == 0) )  then
         local it = optimState.evalCounter or optimState.t
-        torch.save(opt.checkpoint .. '/check_point.' .. it, inputs:float())
+        if type(inputs) == 'table' then
+          for ii=1, #inputs do
+            torch.save(opt.checkpoint .. '/check_point.' .. ii .. '.' .. it, inputs[ii]:float())
+          end
+        else
+         torch.save(opt.checkpoint .. '/check_point.' .. it, inputs:float())
+        end
+        
         torch.save(opt.checkpoint .. '/check_point_t.' .. it, targets:float())
-        torch.save(opt.checkpoint .. '/check_point_o.' .. it, outputs:float())
+        if type(outputs) == 'table' then
+          for ii=1, #inputs do
+            torch.save(opt.checkpoint .. '/check_point_o.' .. ii .. '.' .. it, outputs[ii]:float())
+          end
+        else
+            torch.save(opt.checkpoint .. '/check_point_o.' .. it, outputs:float())
+        end
       end
       
       local f = criterion:forward(outputs, targets)
-      print (f)
+      
+      if opt.optim ~= 'check' then 
+        print (f) 
+      else
+        xlua.progress(check_it, gradParameters:size(1) * 2)
+        check_it = check_it + 1
+      end
       sum_error = sum_error + f
+      
       local df_do = criterion:backward(outputs, targets)
       dpt:backward(inputs, df_do)
+      
       if confusion then confusion:batchAdd( outputs, targets) end
 
       return f,gradParameters
     end
+    
     if opt.optim == 'adam' then
        optim.adam(feval, parameters, optimState)
     else
 	  if opt.optim == 'check' then
-	    optim.checkgrad(feval, parameters)
+      check_it = 1
+	    local diff, dC, dC_est = optim.checkgrad(feval, parameters)
+      print ("Diff:", diff, torch.norm(dC-dC_est), torch.norm(dC+dC_est), torch.max(dC-dC_est))
 	  else
       optim.sgd(feval, parameters, optimState)
 	  end
@@ -289,8 +354,9 @@ function test()
     
     local inputs, targets  = testData:sub(k,k+bs-1)
 
-    inputs  = cast(inputs)
-    targets = cast(targets)
+    inputs  = cast_target(inputs)
+    targets = cast_target(targets)
+    
     local outputs = dpt:forward(inputs)
     local e = criterion:forward(outputs, targets)
     sum_error = sum_error + e

@@ -100,7 +100,7 @@ function M.CenterCrop(size, padding)
    return function(input)
       local i  = type(input) ~= 'table' and input or input[1]
       if padding > 0 then
-         local temp = i.new(3, i:size(2) + 2*padding, i:size(3) + 2*padding)
+         local temp = i.new(i:size(1), i:size(2) + 2*padding, i:size(3) + 2*padding)
          temp:zero()
              :narrow(2, padding+1, i:size(2))
              :narrow(3, padding+1, i:size(3))
@@ -303,6 +303,14 @@ function M.MinMaxNorm()
    end
 end
 
+function M.RedSaturation(prob)
+   return function(input)
+      local alpha = math.random(prob*1000,1000) / 1000.0
+      input = torch.cat( {(input[1] * alpha):reshape(1,input:size(2), input:size(3)), input[2]:reshape(1,input:size(2), input:size(3)), input[3]:reshape(1,input:size(2), input:size(3))}, 1 )
+      return input
+   end
+end
+
 function M.Blur(prob, min, max)
    return function(input)
       if torch.uniform() < prob then
@@ -314,6 +322,40 @@ function M.Blur(prob, min, max)
       end
       return input
    end
+end
+
+function M.ElasticTransform(prob, minalpha, maxalpha, minsigma, maxsigma)
+	--[[
+	Parameters
+	----------
+	img: Tensor of size KxHxW
+		Image on which elastic transformation have to be applied
+	alpha: number
+		Intensity of the transformation
+	sigma: number
+		Sigma for smoothing the transformation. Larger alphas require larger sigmas
+	Returns
+	-------
+	img: Tensor of size KxHxW
+		Image with elastic deformations appiled
+	--]]
+   return function(img)
+     if torch.uniform() < prob then
+        local alpha = torch.random(minalpha, maxalpha)
+        local sigma = torch.random(minsigma, maxsigma)
+        
+        H = img:size(2)
+        W = img:size(3)
+        filterSize = math.max(5,math.ceil(3*sigma))
+
+        flow = torch.rand(2, H, W)*2 - 1 
+        kernel = image.gaussian(filterSize, sigma, 1, true)
+        flow = image.convolve(flow, kernel, 'same')*alpha
+
+        img = image.warp(img, flow)
+     end
+    return img
+ end
 end
 
 function M.Rotation(deg)

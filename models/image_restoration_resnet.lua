@@ -307,13 +307,13 @@ function CreateResNetXt_50(cinput_planes)
     iChannels = 64
     ConvBNReLU(net, cinput_planes, 64, 1)
     
-    ResNetBNBlock_B(net, 64, 2, 2)               -- 56x56
+    ResNetBNBlock_B(net, 64, 2, 2)                     -- 112x112
     
-    ResNetBNBlock_B(net, 128, 3, 2)                -- 28 x 28
+    ResNetBNBlock_B(net, 128, 3, 2)                    -- 56 x 56
     
-    ResNetBNBlock_B(net, 256, 4, 2)                    -- 14 x 14 
+    ResNetBNBlock_B(net, 256, 4, 2)                    -- 28 x 28
 
-    ResNetBNBlock_B(net, 512, 4, 2)                    -- 7 x 7
+    ResNetBNBlock_B(net, 512, 4, 2)                    -- 14 x 14
     
     ResNetBNBlock_B(net, 512, 4, 1)                  --  
     net:add( UpSampling({oheight=28, owidth=28}) )    --  14 x 14

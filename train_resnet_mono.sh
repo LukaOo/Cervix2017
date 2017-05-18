@@ -2,13 +2,13 @@
 #######
 # First parameter is output path
 ########
-GPU=3
-SAVE_PATH=./cervix_classifier_transfer_cnn
-RESNET=NA
+GPU=2
+SAVE_PATH=./cervix_classifier_mono_34
+RESNET=resnet-34
 CONTINUE=""
 LearningRateDecay=1e-4
-LearningRate=0.01
-MODEL=cnn-classifier
+LearningRate=1e-4
+MODEL=resnet-18
 #_spatial_transformer
 
 iter=0
@@ -36,20 +36,20 @@ if [ $iter -gt 0 ]; then
 fi
 # start train
 export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
- -i ./data/nn_ts/ \
+ -i ./data/nn_ts_rest/ \
  -s $SAVE_PATH \
  -b 10 \
  -r $LearningRate \
  --learningRateDecay $LearningRateDecay \
  --model $MODEL \
- --net_config "{cinput_planes=3, image_size=224, class_count=3 }" \
- --provider_config "{provider='datasets/h5-dir-provider', image_size=224}" \
+ --net_config "{cinput_planes=1, image_size=224, class_count=3, model_file='$RESNET.t7', localization_resnet=false}" \
+ --provider_config "{provider='datasets/h5-dir-provider', image_size=224, cinput_planes=1}" \
  --use_optnet 0 \
  --epoch_step 100 \
  --max_epoch 100000 \
- --optim check \
- --backend cudnn $CONTINUE 
- # --checkpoint ./checkpoints
+ --optim adam \
+ --backend cudnn $CONTINUE
+# --checkpoint ./checkpoints
  #--continue ./VGG_LUNG_AUG_SLarge/checkpoint.t7 \
  #--min_save_error -2.08
 
