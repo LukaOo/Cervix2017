@@ -28,6 +28,9 @@ parser.add_option("-s", "--image_size", dest="image_size",
 parser.add_option("-o", "--output", dest="output",
                   help="Output path to store processed images")
                   
+parser.add_option("-n", "--skip_no_mask", dest="skip_no_mask", default=0, type='int',
+                  help="Skip image without mask otherwise will write whole image as output")
+                  
 (options, args) = parser.parse_args()
 
 IMAGES_BASE_PATH = options.input
@@ -57,10 +60,11 @@ def extract_regions(mask):
         area = region['area']
         if area > max_area:
             slice_reg = (region['centroid'], region['bbox'], region['area'])
+            max_area = area
     return b_masks, slice_reg
  
 # extract mask from image 
-def extract_region_from_image(mask, image, image_name, out_size=224):
+def extract_region_from_image(mask, image, image_name, out_size=224, skip_no_mask=0):
     mask = np.transpose(mask,(1,2,0))
     b_mask, reg = extract_regions(mask)
     if reg is not None:
@@ -70,6 +74,8 @@ def extract_region_from_image(mask, image, image_name, out_size=224):
       im = image[reg[0]:reg[2], reg[1]:reg[3]]
     else:
       print "No mask " + image_name
+      if skip_no_mask == 1: 
+         return None
       im = image
       m  = 1
     return scipy.misc.imresize(im / 255.0 * m, (out_size, out_size))
@@ -79,7 +85,7 @@ def write_masked_image(params):
      im = misc.imread(params[0])
      if len( im.shape ) == 0: return
      mask = read_mask(params[1])
-     mim = extract_region_from_image(mask, im, params[0], int(options.image_size))
+     mim = extract_region_from_image(mask, im, params[0], int(options.image_size), options.skip_no_mask)
      if mim is not None:
         misc.imsave(params[2], mim)
 
@@ -88,7 +94,8 @@ if __name__ == "__main__":
       os.makedirs(OUTPUT_IMAGES_PATH)
    image_class_path = os.listdir(IMAGES_BASE_PATH)
    image_class_path.sort()
-   for cp in image_class_path:
+   subdirs_processed = 0
+   for cp in image_class_path:       
        if re.match(r'Type_\d+', cp) is None: continue
        print 'Processing: ' + cp
        im_cp = IMAGES_BASE_PATH + '/' + cp
@@ -107,5 +114,19 @@ if __name__ == "__main__":
        
        pool.terminate()
        pool.close()
-
+       subdirs_processed += 1
        print ''
+       
+   if subdirs_processed == 0:
+       print 'Processing: ' + IMAGES_BASE_PATH
+       images = os.listdir(IMAGES_BASE_PATH)
+       params = []
+       for imf in images:
+           params.append((IMAGES_BASE_PATH + '/' + imf, MASKS_INPUT_PATH + '/' + imf + '.h5', OUTPUT_IMAGES_PATH + '/' + imf))
+           
+       pool = multiprocessing.Pool(processes=20)            
+       pool.map(write_masked_image, params, chunksize=20)
+       
+       pool.terminate()
+       pool.close()
+

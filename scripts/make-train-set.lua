@@ -114,7 +114,7 @@ local csamples = torch.ceil( perm_idx:size(1) * opt.frac)
 for i=1, csamples do
     xlua.progress(i, csamples)
     local idx = perm_idx[i]
-    os_copy(files_list[idx][3], opt.output .. '/' .. ds_name .. '/' .. files_list[idx][1] .. '/' .. files_list[idx][2] )
+    os_copy(files_list[idx][3], opt.output .. '/' .. ds_name .. '/' .. files_list[idx][1] .. '/'.. opt.prefix .. files_list[idx][2] )
 end
 
 local ds_name =  'train'

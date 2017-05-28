@@ -61,7 +61,7 @@ do
 
               return transform.Compose{                      
                       -- transform.Blur(0.2, minBlur, maxBlur),
-                      transform.ElasticTransform(0.1, minAlfa, maxAlfa, minSigma, maxSigma),
+                      -- transform.ElasticTransform(0.1, minAlfa, maxAlfa, minSigma, maxSigma),
                       transform.ColorJitter({
                                   brightness = 0.4,
                                   contrast = 0.4,
@@ -70,7 +70,7 @@ do
                       transform.Lighting(0.1, pca.eigval, pca.eigvec),
                       transform.MakeMonochromeGreenChannel(0.1),
                       transform.AddNoise(0.05),
-                      transform.MinMaxNorm()
+ --                     transform.MinMaxNorm()
                     }
         else
               return transform.Compose{

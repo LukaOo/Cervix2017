@@ -1,6 +1,7 @@
 require 'nn'
 local utils=require 'utils'
 require 'models/gradient_decrease'
+require 'models/spatial_bilinear'
 
 local MaxPooling = nn.SpatialMaxPooling
 local AvgPooling = nn.SpatialAveragePooling
@@ -216,18 +217,14 @@ function LoadPretrainedNet()
     local MODEL_FILE = './pretrained/'.. net_config.model_file
     local class_count = net_config.class_count
     local  net = torch.load(MODEL_FILE)
-    
-    net:replace(function(module)
-       if torch.typename(module) == 'nn.Linear' then
-         embeding_size = module.weight:size(2)
-         print ('Output embeding: ', embeding_size)
-         em_module = nn.Sequential()
-         return nn.Identity() --nn.Linear(module.weight:size(2), module.weight:size(2), false)
-       else
-         return module
-       end
-     end)
-     return net
+    net:remove() -- remove last Linear
+    net:remove() -- remove View
+    net:remove() -- remove --AvgPooling 
+    net:add(nn.View(-1, 2048, 7 * 7)) -- flat all features map
+    net:add(nn.Transpose({2,3}))
+    embeding_size = 2048
+    -- output 2048 or 512 x 7x7
+    return net
 end
 ---------
 --------- Create localization not for spatial transformer input size 224 x 224
@@ -245,11 +242,7 @@ function CreateResNet_18(cinput_planes, class_count)
     ResNetBlock(net, 128, 256, 2, 2)
     
     ResNetBlock(net, 256, 512, 2, 2)
-    net:add(AvgPooling(7, 7, 1, 1))            -- 512 features as output    
-    
-    net:add(nn.View(-1, 512))
-    net:add(nn.Linear(512, 512, false)) 
---    net:add(nn.BatchNormalization(512))
+
     
     return net
 end
@@ -260,20 +253,14 @@ function CreateResNet_34(cinput_planes, class_count)
     ConvBNLeakyReLU7x7(net, cinput_planes,  64, 'local_relu_1_1') -- 112 x 112
     net:add(MaxPooling(3,3, 2,2, 1,1))     
     
-    ResNetBlock(net, 64, 64, 3, 1)
+    ResNetBlock(net, 64, 64, 3, 1) --  56 x 56
    
-    ResNetBlock(net, 64, 128, 4, 2)
+    ResNetBlock(net, 64, 128, 4, 2) -- 28 x 28
     
-    ResNetBlock(net, 128, 256, 6, 2)
+    ResNetBlock(net, 128, 256, 6, 2) -- 14 x 14
     
-    ResNetBlock(net, 256, 512, 3, 2)
-    net:add(AvgPooling(7, 7, 1, 1))            -- 512 features as output    
-    
-    net:add(nn.View(-1, 512))
-    net:add(nn.Linear(512, 512, false)) 
-    embeding_size = 512
---    net:add(nn.BatchNormalization(512))
-    --net:add(nn.LeakyReLU(0.1, true))
+    ResNetBlock(net, 256, 512, 3, 2) -- 7 x 7
+ 
     
     return net
 end
@@ -285,20 +272,14 @@ function CreateResNet_XXX(cinput_planes, bc)
     ConvBNLeakyReLU7x7(net, cinput_planes,  64, 'local_relu_1_1') -- 112 x 112
     net:add(MaxPooling(3,3, 2,2, 1,1))     
     
-    ResNetBNBlock(net, 64, 3, 1)             -- 112x112
+    ResNetBNBlock(net, 64, 3, 1)             -- 56x56
     
-    ResNetBNBlock(net, 128, 4, 2)                     -- 56 x 56
+    ResNetBNBlock(net, 128, 4, 2)                     -- 28 x 28
     
-    ResNetBNBlock(net, 256, bc, 2)                    -- 28 x 28
+    ResNetBNBlock(net, 256, bc, 2)                    -- 14 x 14
 
-    ResNetBNBlock(net, 512, 3, 2)                    -- 14 x 14
+    ResNetBNBlock(net, 512, 3, 2)                    -- 2048x 7 x 7
     
-    net:add(AvgPooling(7, 7, 1, 1))
-    
-    net:add(nn.View(-1, 2048))
-    net:add(nn.Linear(2048, 2048, false)) 
-    embeding_size = 2048
---    net:add(nn.BatchNormalization(2048))
        
     return net
 end
@@ -343,70 +324,19 @@ function CreateResNet(cinput_planes)
    local cnn = nn.Sequential():add( MakeEmbedingNet(cinput_planes) )
    local fc_dropout = net_config.fc_dropout or 0.7
    local cnn_l = cnn
-   local cnn_m = nil
    local cnn_r =  cnn:clone('weight','bias', 'gradWeight','gradBias','running_mean','running_std', 'running_var')
    pt:add(cnn_l)
-   if net_config.tripletnet == true then
-     cnn_m =  cnn:clone('weight','bias', 'gradWeight','gradBias','running_mean','running_std', 'running_var')
-     pt:add(cnn_m)
-   end
    pt:add(cnn_r)
    net:add(pt)
-   print ( 'FC dropout: ', fc_dropout)
-   if opt.criterion == 'Dual' or (crit_config.cross_entropy == true and opt.criterion == 'DistanceRatio')  then
-     local ctab = nn.ConcatTable()
-     -- classificator layer
-     ctab:add(nn.Sequential()
-         :add(nn.BatchNormalization(embeding_size))
+   net:add(nn.SpatialBilinear())
+   net:add(nn.View(-1, embeding_size * embeding_size))
+   net:add(nn.SignedSquareRoot())
+   net:add(nn.Normalize(2)) -- bilinear module output
+   -- classifier
+   net:add(nn.Sequential()
          :add(nn.ReLU(true))
-         :add(nn.Dropout(fc_dropout))
-         :add(nn.Linear(embeding_size, 512))
-         :add(nn.BatchNormalization(512))
-         :add(nn.ReLU(true))
-         :add(nn.Dropout(fc_dropout))
-         :add(nn.Linear(512, net_config.class_count )))
-       
-     ctab:add(nn.Sequential():add(nn.Identity()))
-     -- left part is classifier
-     cnn_l:add( ctab ) 
-     net:add( nn:FlattenTable() ) --  output is table of classifier, left cnn embeding, right embeding
-     ctab = nn.ConcatTable()
-     local classifier_branch = nn.Sequential():add(nn.NarrowTable(1,1))  -- classifier module
-     
-     local distance_branch_m = nil   
-     local distance_branch = nil
-     if cnn_m ~= nil then 
-       distance_branch_m = nn.Sequential():add(nn.NarrowTable(2,2)):add(nn.PairwiseDistance(2))
-       distance_branch = nn.Sequential():add(nn.NarrowTable(3,2)):add(nn.PairwiseDistance(2)) 
-     else
-       distance_branch = nn.Sequential():add(nn.NarrowTable(2,2)):add(nn.PairwiseDistance(2)) 
-     end-- pairwise distance
-     
-     ctab:add(classifier_branch)   
-     
-     if cnn_m ~= nil then ctab:add(distance_branch_m) end     
-     
-     ctab:add(distance_branch)
-     net:add(ctab):add(nn:FlattenTable()) -- output is table classifier and pairwice distance for HingeEmbeddingCriterion or DistanceRatioCriterion
-   else
-     if opt.criterion == 'BCE' then
-        net:add(nn.CSubTable()):add(nn.Abs()) -- L1
-        net:add(nn.Linear(2048, 1))    
-        net:add(nn.Sigmoid())
-       else 
-          if opt.criterion == 'HingeEmbedding' then
-             net:add(nn.PairwiseDistance(2))
-          end
-          if opt.criterion == 'DistanceRatio' then
-            local ctab = nn.ConcatTable()
-            local pos_distance = nn.Sequential():add(nn.NarrowTable(1,2)):add(nn.PairwiseDistance(2)) 
-            local neg_distance = nn.Sequential():add(nn.NarrowTable(2,2)):add(nn.PairwiseDistance(2))
-            ctab:add(pos_distance)
-            ctab:add(neg_distance)
-            net:add(ctab)
-          end
-     end
-   end
+         :add(nn.Linear(embeding_size * embeding_size, net_config.class_count )))
+
    return net
 end
 

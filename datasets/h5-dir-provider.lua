@@ -21,9 +21,12 @@ do
         self.image_size = config.image_size or 224
         self.cinput_planes = config.cinput_planes or 3
         
-        self.InputPath  = self.InputPath .. '/' .. config.data_set_name
-        self.issiames =  config.siames_input
+        self.InputPath   = self.InputPath .. '/' .. config.data_set_name
+        self.issiames    =  config.siames_input
         self.dual_target = config.dual_target
+        self.triplets     = config.triplets
+        self.bilinear     = config.bilinear
+        
         if self.issiames == true then
            self.preprocessor = self:preprocess_siames()
         else
@@ -194,21 +197,69 @@ do
       return #self.list
     end
     
+    function Hdf5Provider:make_triplets_input(inputs, targets)
+           local input2  = {}
+           local target2 = {} -- similar target
+           local input3 = {}
+           local target3 = {} -- dessimilar target
+           
+           local class_idx = {}
+           local class_ptr = {}
+           local cls_cnt = 0
+           -- permutate class indexies
+           for c, v in pairs( self.classes_table ) do
+              class_idx[c] = torch.randperm(#self.classes_table[c]):long()
+              class_ptr[c] = 1
+              cls_cnt = cls_cnt + 1
+           end
+           
+           -- collect tripplets
+           for i=1, targets:size(1) do
+              local target = tostring( targets[i] )
+              local cidx = class_idx[target][class_ptr[target]]
+              local item_name = self:get_paths(self.classes_table[target][cidx], target)
+              class_ptr[target] = class_ptr[target] +1
+              local input, target =  self:get_tensors(item_name, target)
+              input2[i] = input
+              target2[i] = target
+              -- select random opposite class
+              local tt = torch.Tensor(100):random(1, cls_cnt)
+              for j=1, tt:size(1) do
+                if tt[j] ~= target then
+                  target = tt[j]
+                  break
+                end
+              end
+              target = tostring(target)
+              cidx = class_idx[target][class_ptr[target]]
+              item_name = self:get_paths(self.classes_table[target][cidx], target)
+              class_ptr[target] = class_ptr[target] +1
+              input, target =  self:get_tensors(item_name, target)
+              input3[i] = input
+              target3[i] = target
+           end
+        return { torch.cat(input2, 1),  inputs,  torch.cat(input3, 1)}, torch.cat(target2, 1)
+    end
+    
     function Hdf5Provider:make_siames_input(input, target)
        if self.issiames == true then
+         
+         if self.triplets == true then
+            return self:make_triplets_input(input, target)
+         end
+         
+         if self.bilinear == true then
+            return {input,input}, target
+         end
+         
          local input1 = input
          local input2 = nil
          local target2 = nil
---         if self.ds_name == 'train' then
-             -- if train read new data sample
---             local indicies = torch.randperm(#self.list):long():split(self.batchSize)
---             input2, target2 = self:__sub_indices(indicies[1], true)
---         else
+         
          input2 = input:clone()
          local indices = torch.randperm(input2:size(1)):long()
          input2  = input2:index(1,indices)
          target2 = target:clone():index(1, indices)
---         end
          
          local o_target = torch.abs(target - target2)
          o_target[torch.gt(o_target, 0)] = -1

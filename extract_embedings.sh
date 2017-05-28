@@ -15,5 +15,5 @@ do
    then
       mkdir "$OUTPUT_PATH/$f"
    fi
-   export CUDA_VISIBLE_DEVICES=$GPU; th scripts/restore_cervix_image.lua -i $INPUT_PATH/$f -o $OUTPUT_PATH/$f --model $MODEL --backend cudnn --use_optnet 1
+   export CUDA_VISIBLE_DEVICES=$GPU; th scripts/extract_embedings.lua -i $INPUT_PATH/$f -o $OUTPUT_PATH/$f --model $MODEL --backend cudnn
 done

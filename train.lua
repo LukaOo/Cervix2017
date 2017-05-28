@@ -33,6 +33,7 @@ opt = lapp[[
    --criterion                (default 'CrossEntropy') criterion CrossEntropy|Dice|SpatialBCE|MCE|PL
    --perceptual_config        (default nil)        perceptual criterion configuration
    --ignore_state             (default 0 )         ignore states when load model to continie training
+   --crit_config              (default {})         criterion configuration {weights={0.5,1}} 
 ]]
 
 print(opt)
@@ -46,6 +47,7 @@ end
 provider_config = loadstring(" return " .. opt.provider_config) ()
 net_config = loadstring(" return " .. opt.net_config)()
 lr_decay_sheduler = loadstring(" return " .. opt.lr_decay_sheduler)()
+crit_config = loadstring(" return " .. opt.crit_config)()
 
 local function cast(t)
    if opt.type == 'cuda' then
@@ -87,7 +89,16 @@ if opt.use_optnet == 1 then
       if provider_config.flat == true then
           mod_input = cast(torch.rand( 2, net_config.cinput_planes, net_config.input_size))
       else
-          mod_input = cast(torch.rand( 1, net_config.cinput_planes, net_config.image_size, net_config.image_size))
+          if provider_config.siames_input == true then
+            local tt = {}
+            mod_input = cast(torch.rand( 1, net_config.cinput_planes, net_config.image_size, net_config.image_size))
+            tt[1] = mod_input
+            tt[2] = mod_input:clone()
+            if provider_config.triplets == true then tt[3] = mod_input:clone() end
+            mod_input = tt
+          else
+            mod_input = cast(torch.rand( 1, net_config.cinput_planes, net_config.image_size, net_config.image_size))
+          end
       end
    end
    mod_opts = {inplace=false, mode='training'}
@@ -135,8 +146,12 @@ print('Will save at '..opt.save)
 
 paths.mkdir(opt.save)
 testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
-if opt.criterion == 'Dice' or opt.criterion == 'SpatialBCE' or opt.criterion == 'MSE' then
-   testLogger:setNames{opt.criterion.. ' loss (train set)', opt.criterion..' loss (test set)'}
+if confusion == nil then
+   if opt.criterion ~= 'Dual' and (crit_config.cross_entropy ~= true and opt.criterion ~= 'DistanceRatio') then
+      testLogger:setNames{opt.criterion.. ' loss (train set)', opt.criterion..' loss (test set)'}
+   else
+      testLogger:setNames{opt.criterion.. ' loss (train set)', opt.criterion..' loss (test set)', 'CE loss (train set)', 'CE loss (test set)', 'HE loss (train set)', 'HE loss (test set)'}
+   end
 else  
    testLogger:setNames{'Mean class accuracy (train set)', 'Mean class accuracy (test set)', 'Train error', 'Test error'}
 end
@@ -172,8 +187,22 @@ else
                if opt.criterion == 'Cosine' then
                   criterion = cast( nn.CosineEmbeddingCriterion() )
                 else
-                   if opt.criterion == 'Dual' then                     
-                     criterion = cast( nn.ParallelCriterion():add(nn.CrossEntropyCriterion()):add(nn.HingeEmbeddingCriterion()) )
+                   if opt.criterion == 'Dual' then
+                     local w = {1,1}
+                     if crit_config ~= nil and crit_config.weights ~= nil and #crit_config.weights == 2 then
+                       w = crit_config.weights
+                     end
+                     print ("Dual criterion weights: ", w)
+                     criterion = cast( nn.ParallelCriterion():add(nn.CrossEntropyCriterion(), w[1]):add(nn.HingeEmbeddingCriterion(), w[2]) )
+                   else
+                     if opt.criterion == 'DistanceRatio' then
+                         if crit_config.cross_entropy == true then
+                           require 'criterions/DualParallelCriterion'
+                           criterion = cast( nn.DualParallelCriterion():add(nn.CrossEntropyCriterion()):add(nn.DistanceRatioCriterion()) )
+                         else 
+                           criterion = cast( nn.DistanceRatioCriterion() )
+                         end
+                     end
                    end
                end
             end   
@@ -231,6 +260,18 @@ local function cast_target(inputs)
     return inputs
 end
 
+local function get_dual_loss_from(crit, output_loss)
+    if opt.criterion == 'Dual' or (crit_config.cross_entropy == true and opt.criterion == 'DistanceRatio')then
+      if ( torch.typename(crit) == 'nn.ParallelCriterion' or torch.typename(crit) == 'nn.DualParallelCriterion')  and output_loss ~= nil then
+        output_loss[1] = output_loss[1] + crit.criterions[1].output 
+        output_loss[2] = output_loss[2] + crit.criterions[2].output 
+      end
+    else
+       output_loss = nil
+    end
+    return output_loss
+end
+
 function train()
   dpt:training()
   epoch = epoch or 1
@@ -248,6 +289,9 @@ function train()
   local iters = opt.epoch_step <= 0 and trainData.cbatches or math.min(trainData.cbatches, opt.epoch_step )
   trainData:reset()
   local sum_error = 0
+  local dual_loss = {}
+  dual_loss[1] = 0
+  dual_loss[2] = 0
   
   for t=1, iters do
     xlua.progress(t, iters)
@@ -285,8 +329,10 @@ function train()
             torch.save(opt.checkpoint .. '/check_point_o.' .. it, outputs:float())
         end
       end
-      
+
       local f = criterion:forward(outputs, targets)
+      
+      dual_loss = get_dual_loss_from(criterion, dual_loss)
       
       if opt.optim ~= 'check' then 
         print (f) 
@@ -329,8 +375,14 @@ function train()
   else
     print (("Train error: ".. c.cyan'%.4f' .. ' %%\t time: %.2f s' ):format( sum_error / iters, torch.toc(tic)))
   end
+  if dual_loss ~= nil then
+     dual_loss[1] =  dual_loss[1] / iters
+     dual_loss[2] =  dual_loss[2] / iters
+     print (("Train CE error: ".. c.cyan'%.4f' .. "; HE error: ".. c.cyan'%.4f' .. ' %%\t time: %.2f s' ):format( dual_loss[1], dual_loss[2], torch.toc(tic)) )
+  end
 
-  train_error = sum_error / iters
+  train_error     = sum_error / iters
+  train_dual_loss = dual_loss
 
   epoch = epoch + 1
 end
@@ -344,6 +396,9 @@ function test()
   local sum_error = 0
   local iters = 0
   local cc  = math.ceil(testData:size()/bs)
+  local dual_loss = {}
+  dual_loss[1] = 0
+  dual_loss[2] = 0
 
   
   testData:reset()
@@ -359,6 +414,9 @@ function test()
     
     local outputs = dpt:forward(inputs)
     local e = criterion:forward(outputs, targets)
+    
+    dual_loss = get_dual_loss_from(criterion, dual_loss)
+    
     sum_error = sum_error + e
     iters = iters + 1
     
@@ -372,16 +430,29 @@ function test()
   else
     print (("Test error: ".. c.cyan'%.4f' ):format( sum_error / iters ))
   end
-  test_error = sum_error / iters
   
+  if dual_loss ~= nil then
+     dual_loss[1] =  dual_loss[1] / iters
+     dual_loss[2] =  dual_loss[2] / iters
+     print (("Test CE error: ".. c.cyan'%.4f' .. "; HE error: ".. c.cyan'%.4f' ):format( dual_loss[1], dual_loss[2]) )
+  end
+
+  test_error = sum_error / iters
+  test_dual_loss = dual_loss
+
   if testLogger then
     paths.mkdir(opt.save)
     if confusion then
       testLogger:add{train_acc, confusion.totalValid, train_error, test_error}
       testLogger:style{'-','-', '-', '-' }
     else
-      testLogger:add{train_error, test_error}
-      testLogger:style{'-','-', '-', '-' }
+      if dual_loss == nil then
+        testLogger:add{train_error, test_error}
+        testLogger:style{'-','-', '-', '-' }
+      else
+        testLogger:add{train_error, test_error, train_dual_loss[1], test_dual_loss[1], train_dual_loss[2], test_dual_loss[2]}
+        testLogger:style{'-','-', '-', '-', '-', '-' }
+      end
     end  
     testLogger:plot()
 

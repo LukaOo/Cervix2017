@@ -3,14 +3,13 @@
 # First parameter is output path
 ########
 GPU=1
-SAVE_PATH=./siames_net
-#RESNET=resnet-152
+SAVE_PATH=./mlp
 CONTINUE=""
 LearningRateDecay=1e-4
 LearningRate=1e-5
-MODEL=siames_net
+MODEL=mlp
 #_spatial_transformer
-# FC_CONFIG=',fc={{size=2048,bn=true,lrelu=0.1,dropout=0.3},{size=1024,bn=true,lrelu=0.1,dropout=0.3},{size=512,bn=true,lrelu=0.1,dropout=0.3}}'
+FC_CONFIG=',fc={{size=2048,bn=true,lrelu=0.1,dropout=0.9},{size=1024,bn=true,lrelu=0.1,dropout=0.9},{size=512,bn=true,lrelu=0.1,dropout=0.9}}'
 iter=0    
 if [ "$1" == "continue" ]; then
    CONTINUE="--continue $SAVE_PATH/checkpoint.t7"
@@ -36,19 +35,19 @@ if [ $iter -gt 0 ]; then
 fi
 # start train
 export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
- -i ./data/nn_ts_x224/ \
+ -i ./data/nn_ts_emb/ \
  -s $SAVE_PATH \
- -b 10 \
+ -b 128 \
  -r $LearningRate \
  --learningRateDecay $LearningRateDecay \
  --model $MODEL \
- --net_config "{cinput_planes=3, image_size=224, class_count=3, resnet='152' }" \
- --provider_config "{provider='datasets/h5-dir-provider', image_size=224, siames_input=true, dual_target=true}" \
+ --net_config "{class_count=3, inputsize=2048 $FC_CONFIG }" \
+ --provider_config "{provider='datasets/h5-mlp-provider' }" \
  --use_optnet 0 \
- --epoch_step 100 \
+ --epoch_step 200 \
  --max_epoch 100000 \
  --optim adam \
- --criterion Dual \
+ --criterion CrossEntropy \
  --backend cudnn $CONTINUE 
  # --crit_config "{weights={0.1, 1}}" \
  # --checkpoint ./checkpoints
