@@ -215,16 +215,27 @@ embeding_size = 0
 function LoadPretrainedNet()
     local MODEL_FILE = './pretrained/'.. net_config.model_file
     local class_count = net_config.class_count
+    local white_nose  = net_config.white_noise
     local  net = torch.load(MODEL_FILE)
+    print ('White_nose', white_nose)
     
     net:replace(function(module)
        if torch.typename(module) == 'nn.Linear' then
          embeding_size = module.weight:size(2)
          print ('Output embeding: ', embeding_size)
+         local fc_dropout = net_config.fc_dropout or 0.7
          em_module = nn.Sequential()
-         return nn.Identity() --nn.Linear(module.weight:size(2), module.weight:size(2), false)
+         em_module:add(nn.Dropout(fc_dropout)):add(nn.Identity())
+         return em_module -- nn.Linear(module.weight:size(2), module.weight:size(2), false)
        else
-         return module
+         -- add noise to add table node to regulariase
+         if torch.typename(module) == 'nn.CAddTable' and white_nose ~= nil then            
+            local noise_module = nn.Sequential()
+            noise_module:add(nn.CAddTable()):add(nn.WhiteNoise(white_nose.mean, white_nose.std))
+            return noise_module
+         else
+           return module
+         end
        end
      end)
      return net
@@ -357,14 +368,15 @@ function CreateResNet(cinput_planes)
      local ctab = nn.ConcatTable()
      -- classificator layer
      ctab:add(nn.Sequential()
-         :add(nn.BatchNormalization(embeding_size))
-         :add(nn.ReLU(true))
-         :add(nn.Dropout(fc_dropout))
-         :add(nn.Linear(embeding_size, 512))
-         :add(nn.BatchNormalization(512))
-         :add(nn.ReLU(true))
-         :add(nn.Dropout(fc_dropout))
-         :add(nn.Linear(512, net_config.class_count )))
+--         :add(nn.BatchNormalization(embeding_size))
+--         :add(nn.ReLU(true))
+--         :add(nn.Dropout(fc_dropout))
+--         :add(nn.Linear(embeding_size, 512))
+--         :add(nn.BatchNormalization(512))
+--         :add(nn.ReLU(true))
+--         :add(nn.Dropout(fc_dropout))
+--         :add(nn.Linear(512, net_config.class_count )))
+           :add(nn.Linear(embeding_size, net_config.class_count )))
        
      ctab:add(nn.Sequential():add(nn.Identity()))
      -- left part is classifier

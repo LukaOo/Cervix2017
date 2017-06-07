@@ -213,16 +213,23 @@ function CreateCNNNet(cinput_planes)
 end
 
 embeding_size = 0
-function LoadPretrainedNet()
-    local MODEL_FILE = './pretrained/'.. net_config.model_file
+function LoadPretrainedNet(model_file, c_features)
+    local MODEL_FILE = './pretrained/'.. model_file
     local class_count = net_config.class_count
+    local gradient_decrease = net_config.gradiend_decrease or 0.1
     local  net = torch.load(MODEL_FILE)
+    local cf = c_features or 2048
     net:remove() -- remove last Linear
     net:remove() -- remove View
-    net:remove() -- remove --AvgPooling 
-    net:add(nn.View(-1, 2048, 7 * 7)) -- flat all features map
+    net:remove() -- remove --AvgPooling
+    local fc_dropout = net_config.fc_dropout or 0.7
+    
+    if fc_dropout > 0 then net:add( nn.SpatialDropout(fc_dropout) ) end
+    
+    net:add(nn.View(-1, c_features, 7 * 7)) -- flat all features map
+    if gradient_decrease > 0 then net:add(nn.GradientDecrease(gradient_decrease)) end
     net:add(nn.Transpose({2,3}))
-    embeding_size = 2048
+    embeding_size = c_features
     -- output 2048 or 512 x 7x7
     return net
 end
@@ -296,9 +303,9 @@ function CreateResNet_152(cinput_planes)
     return CreateResNet_XXX(cinput_planes, 36)
 end
 
-function MakeEmbedingNet(cinput_planes)
-     if net_config.model_file ~= nil and net_config.model_file ~= '' then
-       return LoadPretrainedNet()
+function MakeEmbedingNet(cinput_planes, model_file, c_features)
+     if net_config.model_file ~= nil and model_file ~= '' then
+       return LoadPretrainedNet(model_file, c_features)
      end
      
      print ("Create net: resnet_" .. net_config.resnet)
@@ -319,23 +326,29 @@ function MakeEmbedingNet(cinput_planes)
 end
 
 function CreateResNet(cinput_planes)
+   local fc_dropout = net_config.fc_dropout or 0.7
    local net = nn.Sequential()
    local pt = nn.ParallelTable()
-   local cnn = nn.Sequential():add( MakeEmbedingNet(cinput_planes) )
-   local fc_dropout = net_config.fc_dropout or 0.7
+   local cnn = nn.Sequential():add( MakeEmbedingNet(cinput_planes, net_config.model_file, net_config.c_features) )
+   local emb_l = embeding_size
    local cnn_l = cnn
-   local cnn_r =  cnn:clone('weight','bias', 'gradWeight','gradBias','running_mean','running_std', 'running_var')
+   local cnn_r =  None
+   if net_config.model_file1 == nil then
+     cnn_r = cnn:clone('weight','bias', 'gradWeight','gradBias','running_mean','running_std', 'running_var')
+   else
+     cnn_r = nn.Sequential():add( MakeEmbedingNet(cinput_planes, net_config.model_file1, net_config.c_features1) )
+   end
+   local emb_r = embeding_size
    pt:add(cnn_l)
    pt:add(cnn_r)
    net:add(pt)
    net:add(nn.SpatialBilinear())
-   net:add(nn.View(-1, embeding_size * embeding_size))
+   net:add(nn.View(-1, emb_l * emb_r))
    net:add(nn.SignedSquareRoot())
    net:add(nn.Normalize(2)) -- bilinear module output
    -- classifier
    net:add(nn.Sequential()
-         :add(nn.ReLU(true))
-         :add(nn.Linear(embeding_size * embeding_size, net_config.class_count )))
+         :add(nn.Linear(emb_l * emb_r, net_config.class_count )))
 
    return net
 end

@@ -2,13 +2,13 @@
 #######
 # First parameter is output path
 ########
-GPU=1
-SAVE_PATH=./triplet_net_ce_101
-RESNET=resnet-101
+GPU=2
+SAVE_PATH=./triplet_net_ce_101_07_03_02_WN_03
+RESNET=resnet-50
 CONTINUE=""
 LearningRateDecay=1e-4
-weightDecay=1e-3
-LearningRate=1e-4
+weightDecay=1e-2
+LearningRate=1e-3
 MODEL=siames_net
 #_spatial_transformer
 # FC_CONFIG=',fc={{size=2048,bn=true,lrelu=0.1,dropout=0.3},{size=1024,bn=true,lrelu=0.1,dropout=0.3},{size=512,bn=true,lrelu=0.1,dropout=0.3}}'
@@ -37,16 +37,16 @@ if [ $iter -gt 0 ]; then
 fi
 # start train
 export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
- -i ./data2/nn_ts_x224.merged/ \
+ -i ./data/nn_ts_x224/ \
  -s $SAVE_PATH \
  -b 10 \
  -r $LearningRate \
  --learningRateDecay $LearningRateDecay \
  --weightDecay $weightDecay \
  --model $MODEL \
- --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', fc_dropout=0.70, tripletnet=true }" \
+ --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', fc_dropout=0.7, tripletnet=true, white_noise={mean=0, std=0.001} }" \
  --provider_config "{provider='datasets/h5-dir-provider', image_size=224, siames_input=true, dual_target=true, triplets=true}" \
- --use_optnet 0 \
+ --use_optnet 1 \
  --epoch_step 100 \
  --max_epoch 100000 \
  --optim sgd \

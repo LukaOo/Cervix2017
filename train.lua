@@ -34,6 +34,7 @@ opt = lapp[[
    --perceptual_config        (default nil)        perceptual criterion configuration
    --ignore_state             (default 0 )         ignore states when load model to continie training
    --crit_config              (default {})         criterion configuration {weights={0.5,1}} 
+   --grad_noise               (default nil)        gradient noise regularization {var=0.1}
 ]]
 
 print(opt)
@@ -48,6 +49,7 @@ provider_config = loadstring(" return " .. opt.provider_config) ()
 net_config = loadstring(" return " .. opt.net_config)()
 lr_decay_sheduler = loadstring(" return " .. opt.lr_decay_sheduler)()
 crit_config = loadstring(" return " .. opt.crit_config)()
+grad_noise  = loadstring(" return " .. opt.grad_noise)()
 
 local function cast(t)
    if opt.type == 'cuda' then
@@ -127,7 +129,9 @@ end
 
 
 print(model)
-
+if grad_noise ~= nil then
+  print ('Gardient noise regularisation with start variance - ', grad_noise.var)
+end
 print(c.blue '==>' ..' loading data ' .. opt.input)
 
 provider_config.input_path = opt.input
@@ -346,7 +350,14 @@ function train()
       dpt:backward(inputs, df_do)
       
       if confusion then confusion:batchAdd( outputs, targets) end
-
+      --  gradient noise regulariazation
+      if grad_noise ~= nil then
+         if not optimState.noiseParameters then
+            optimState.noiseParameters = torch.Tensor():typeAs(x):resizeAs(gradParameters)
+         end
+         local noise_t = get_step(optimState)
+         gradParameters:add(optimState.noiseParameters:normal(0, grad_noise.var / math.pow ((1+noise_t), 0.55)))
+      end
       return f,gradParameters
     end
     

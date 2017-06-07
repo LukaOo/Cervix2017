@@ -2,13 +2,13 @@
 #######
 # First parameter is output path
 ########
-GPU=1
-SAVE_PATH=./triplet_net_ce_101
-RESNET=resnet-101
+GPU=2,3
+SAVE_PATH=./triplet_net_ce_200_07_03_03_GN05
+RESNET=resnet-200
 CONTINUE=""
 LearningRateDecay=1e-4
 weightDecay=1e-3
-LearningRate=1e-4
+LearningRate=1e-3
 MODEL=siames_net
 #_spatial_transformer
 # FC_CONFIG=',fc={{size=2048,bn=true,lrelu=0.1,dropout=0.3},{size=1024,bn=true,lrelu=0.1,dropout=0.3},{size=512,bn=true,lrelu=0.1,dropout=0.3}}'
@@ -43,8 +43,9 @@ export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
  -r $LearningRate \
  --learningRateDecay $LearningRateDecay \
  --weightDecay $weightDecay \
+ --grad_noise "{var=0.05}" \
  --model $MODEL \
- --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', fc_dropout=0.70, tripletnet=true }" \
+ --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', fc_dropout=0.7, tripletnet=true }" \
  --provider_config "{provider='datasets/h5-dir-provider', image_size=224, siames_input=true, dual_target=true, triplets=true}" \
  --use_optnet 0 \
  --epoch_step 100 \

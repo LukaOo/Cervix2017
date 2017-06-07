@@ -2,14 +2,15 @@
 #######
 # First parameter is output path
 ########
-GPU=1
-SAVE_PATH=./triplet_net_ce_101
-RESNET=resnet-101
+GPU=0,1
+SAVE_PATH=./bilinear_net_2x50x101_0x2
+RESNET=resnet-50
+RESNET2=resnet-101
 CONTINUE=""
-LearningRateDecay=1e-4
-weightDecay=1e-3
-LearningRate=1e-4
-MODEL=siames_net
+LearningRateDecay=1e-7
+weightDecay=2e-3
+LearningRate=5e-2
+MODEL=bilinear_net
 #_spatial_transformer
 # FC_CONFIG=',fc={{size=2048,bn=true,lrelu=0.1,dropout=0.3},{size=1024,bn=true,lrelu=0.1,dropout=0.3},{size=512,bn=true,lrelu=0.1,dropout=0.3}}'
 iter=0    
@@ -37,21 +38,21 @@ if [ $iter -gt 0 ]; then
 fi
 # start train
 export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
- -i ./data2/nn_ts_x224.merged/ \
+ -i ./data/nn_ts_x224/ \
  -s $SAVE_PATH \
  -b 10 \
  -r $LearningRate \
  --learningRateDecay $LearningRateDecay \
  --weightDecay $weightDecay \
+ --lr_decay_sheduler '{[70]=0.5, [120]=0.5, [160]=0.5, [250]=0.1}' \
  --model $MODEL \
- --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', fc_dropout=0.70, tripletnet=true }" \
- --provider_config "{provider='datasets/h5-dir-provider', image_size=224, siames_input=true, dual_target=true, triplets=true}" \
+ --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', model_file1='$RESNET2.t7', gradiend_decrease=0.0, fc_dropout=0.0 }" \
+ --provider_config "{provider='datasets/h5-dir-provider', image_size=224, dual_target=true, bilinear=true, siames_input=true}" \
  --use_optnet 0 \
  --epoch_step 100 \
  --max_epoch 100000 \
  --optim sgd \
- --criterion DistanceRatio \
- --crit_config "{cross_entropy=true}" \
+ --criterion CrossEntropy \
  --backend cudnn $CONTINUE 
  # --crit_config "{weights={0.1, 1}}" \
  # --checkpoint ./checkpoints

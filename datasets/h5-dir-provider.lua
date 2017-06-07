@@ -28,8 +28,10 @@ do
         self.bilinear     = config.bilinear
         
         if self.issiames == true then
+           print ("Use siames data preprocessor")
            self.preprocessor = self:preprocess_siames()
         else
+           print ("Use generic data preprocessor")
            self.preprocessor = self:preprocess()
         end
         
@@ -123,8 +125,8 @@ do
                                       saturation = 0.4,
                                   }),                      
                           transform.Lighting(0.1, pca.eigval, pca.eigvec),
-                          transform.MinMaxNorm(),
-                          transform.RedSaturation(0.7),
+--                          transform.MinMaxNorm(),
+--                          transform.RedSaturation(0.7),
     --                      transform.MakeMonochromeGreenChannel(0.1),
                           transform.ColorNormalize(meanstd),
                           transform.AddNoise(0.05),
@@ -242,7 +244,7 @@ do
     end
     
     function Hdf5Provider:make_siames_input(input, target)
-       if self.issiames == true then
+       if self.issiames == true or self.bilinear == true or  self.triplets == true then
          
          if self.triplets == true then
             return self:make_triplets_input(input, target)

@@ -12,12 +12,12 @@ end
 
 
 function SpatialBilinear:updateOutput(input)
-  local C, H, W
+  local C1, C2, H, W
   local x1_flat = input[1]
   local x2_flat  = input[2]
   
-  N, C = x1_flat:size(1), x1_flat:size(3)
-  self.output:resize(N, C, C)
+  N, C1, C2 = x1_flat:size(1), x1_flat:size(3), x2_flat:size(3)
+  self.output:resize(N, C1, C2)
   self.output:bmm( x1_flat:transpose(2, 3), x2_flat)
 
   return self.output
@@ -29,15 +29,15 @@ function SpatialBilinear:updateGradInput(input, gradOutput)
   self.gradInput[1] = (self.gradInput[1] or input[1].new()):resize(input[1]:size()) 
   self.gradInput[2] = (self.gradInput[2] or input[2].new()):resize(input[2]:size())
   
-  local C, H, W
+  local C1, C2, H, W
   local x1_flat = input[1]
   local x2_flat = input[2]
 
-  self.buffer:resizeAs(x2_flat)
+  self.buffer:resizeAs(x1_flat)
   self.buffer:bmm( x2_flat, gradOutput:transpose(2, 3))
   self.gradInput[1] = self.buffer:clone()
   
-  self.buffer:resizeAs(x1_flat)
+  self.buffer:resizeAs(x2_flat)
   self.buffer:bmm( x1_flat, gradOutput)
   self.gradInput[2] = self.buffer
   return self.gradInput
