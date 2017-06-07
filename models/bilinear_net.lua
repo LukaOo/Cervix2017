@@ -226,10 +226,10 @@ function LoadPretrainedNet(model_file, c_features)
     
     if fc_dropout > 0 then net:add( nn.SpatialDropout(fc_dropout) ) end
     
-    net:add(nn.View(-1, c_features, 7 * 7)) -- flat all features map
+    net:add(nn.View(-1, cf, 7 * 7)) -- flat all features map
     if gradient_decrease > 0 then net:add(nn.GradientDecrease(gradient_decrease)) end
     net:add(nn.Transpose({2,3}))
-    embeding_size = c_features
+    embeding_size = cf
     -- output 2048 or 512 x 7x7
     return net
 end

@@ -44,7 +44,7 @@ export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
  -r $LearningRate \
  --learningRateDecay $LearningRateDecay \
  --weightDecay $weightDecay \
- --lr_decay_sheduler '{[70]=0.5, [120]=0.5, [160]=0.5, [250]=0.1}' \
+ --lr_decay_sheduler '{[30]=0.5, [70]=0.5, [120]=0.5, [160]=0.5, [250]=0.1}' \
  --model $MODEL \
  --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', model_file1='$RESNET2.t7', gradiend_decrease=0.0, fc_dropout=0.0 }" \
  --provider_config "{provider='datasets/h5-dir-provider', image_size=224, dual_target=true, bilinear=true, siames_input=true}" \
