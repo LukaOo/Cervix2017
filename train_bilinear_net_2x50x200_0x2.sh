@@ -4,12 +4,12 @@
 ########
 GPU=2,3
 SAVE_PATH=./bilinear_net_2x50x200_0x2
-RESNET=resnet-34
-RESNET2=resnet-50
+RESNET=resnet-50
+RESNET2=resnet-200
 CONTINUE=""
-LearningRateDecay=1e-7
-weightDecay=2e-4
-LearningRate=5e-2
+LearningRateDecay=1e-5
+weightDecay=1e-5
+LearningRate=1e-1
 MODEL=bilinear_net
 #_spatial_transformer
 # FC_CONFIG=',fc={{size=2048,bn=true,lrelu=0.1,dropout=0.3},{size=1024,bn=true,lrelu=0.1,dropout=0.3},{size=512,bn=true,lrelu=0.1,dropout=0.3}}'
@@ -44,9 +44,9 @@ export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
  -r $LearningRate \
  --learningRateDecay $LearningRateDecay \
  --weightDecay $weightDecay \
- --lr_decay_sheduler '{[70]=0.5, [120]=0.5, [150]=0.5}' \
+ --lr_decay_sheduler '{[40]=0.1, [90]=0.1, [200]=0.1}' \
  --model $MODEL \
- --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', c_features=512, model_file1='$RESNET2.t7', c_features1=2048, gradiend_decrease=0.0, fc_dropout=0.0 }" \
+ --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', c_features=2048, model_file1='$RESNET2.t7', c_features1=2048, gradiend_decrease=0.0, fc_dropout=0.0 }" \
  --provider_config "{provider='datasets/h5-dir-provider', image_size=224, dual_target=true, bilinear=true, siames_input=true}" \
  --use_optnet 0 \
  --epoch_step 100 \

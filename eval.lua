@@ -2,6 +2,7 @@ require 'xlua'
 require 'nn'
 require 'dpnn'
 require 'models/gradient_decrease'
+require 'models/spatial_bilinear.lua'
 local utils=require 'utils'
 
 local c = require 'trepl.colorize'
@@ -75,6 +76,19 @@ testData = Hdf5Provider( provider_config, opt.batchSize )
 softmax = cast( nn.SoftMax() )
 criterion = cast(nn.CrossEntropyCriterion())
 
+local function cast_target(inputs)
+  
+    if type(inputs) == 'table' then
+       for ii=1, #inputs do
+          inputs[ii] = cast(inputs[ii])
+       end
+    else
+          inputs  = cast(inputs)
+    end
+    
+    return inputs
+end
+
 print ("Model quality: ", model.last_error)
 
 function test()
@@ -97,8 +111,8 @@ function test()
     
     local inputs, targets  = testData:sub(k,k+bs-1)
 
-    inputs  = cast(inputs)
-    targets = cast(targets)
+    inputs  = cast_target(inputs)
+    targets = cast_target(targets)
     local outputs = dpt:forward(inputs)
     local y, idx = torch.max(softmax:forward(outputs), 2)
     

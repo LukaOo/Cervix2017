@@ -3,6 +3,9 @@ require 'nn'
 require 'cunn'
 require 'cudnn'
 require 'paths'
+require 'models/gradient_decrease'
+require 'models/spatial_bilinear.lua'
+
 local transform = require 'datasets/transforms'
 
 hdf5 = require 'hdf5'
@@ -18,6 +21,10 @@ opt = lapp[[
    --use_optnet               (default 0)           use memory optimisation by optnet
    --image_size               (default 224)         neural network input image size
    -b,--batch_size            (default 6)           size of batch
+   -h,--extract_high_level    (default 0)           extract hi level embeding instead 
+   --siamese_input            (default 0)           siamese input
+   --softmax                  (default 0)           apply softmax for each sample
+   --normalize_resnet         (default 1)           apply resnet normalization
 ]]
 
 print(opt)
@@ -44,11 +51,33 @@ local function cast(t)
       error('Unknown type '..opt.type)
    end
 end
+  -- Computed from random subset of ImageNet training images
+  local meanstd = {
+     mean = { 0.485, 0.456, 0.406 },
+     std = { 0.229, 0.224, 0.225 },
+  }
+  local pca = {
+     eigval = torch.Tensor{ 0.2175, 0.0188, 0.0045 },
+     eigvec = torch.Tensor{
+        { -0.5675,  0.7192,  0.4009 },
+        { -0.5808, -0.0045, -0.8140 },
+        { -0.5836, -0.6948,  0.4203 },
+     },
+  }
 
 function preprocess()
-      return transform.Compose{
+       if opt.normalize_resnet == 1 then
+       return transform.Compose{
+             transform.ColorNormalize(meanstd),
+            }
+            
+       else
+         
+        return transform.Compose{
              transform.Scale(opt.image_size),
             }
+       end
+            
 end
 
 
@@ -84,10 +113,11 @@ end
 
 print (c.blue '==>' ..' loading model: '.. opt.model)
 
+local softmax = cast(nn.SoftMax())
+
 model = cast(torch.load(opt.model))
 model:clearState()
 model:evaluate()
-
 
 print (c.green '==> Model quality: ' .. model.last_error)
 
@@ -115,9 +145,11 @@ print ('Gpus', gpus)
 
 local pt = model:findModules('nn.ParallelTable')
 
-if pt ~= nil and #pt > 0 then
+if pt ~= nil and #pt > 0 and opt.extract_high_level == 0 then
    -- get second model for embeding
    model = pt[1]:get(2)
+else
+    print ("Extracting high level features")
 end
 
 
@@ -130,14 +162,22 @@ local files_list = getFilesList(opt.input)
 
 
 print ('Total input files: ', #files_list)
+local preprocessor = preprocess()
 
 for i=1, #files_list do
     xlua.progress(i, #files_list)
  
-    local input = get_image(opt.input .. '/' .. files_list[i])
+    local input = preprocessor( get_image(opt.input .. '/' .. files_list[i]) )
     local input_size = input:size()
     input = input:reshape(1, input:size(1), input:size(2), input:size(3)):cuda()
+    if opt.siamese_input == 1 then
+      input = {input, input}
+    end
     local embeding = model:forward(input):clone():float()
+    
+    if opt.softmax == 1 then
+      embeding = softmax:forward(cast(embeding)):clone():float()
+    end
     
     mask = embeding:reshape(embeding:size(2))
         

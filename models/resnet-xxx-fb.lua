@@ -31,10 +31,8 @@ local classifier = nn.Sequential()
       if gradient_decrease > 0 then classifier:add(nn.GradientDecrease(gradient_decrease)) end
 --      classifier:add(nn.Dropout(0.5))
 if fc_conf == nil then
-      classifier:add(nn.Linear( linear_input_size, last_layer_size))
-      classifier:add(nn.BatchNormalization(last_layer_size)) 
-      classifier:add(nn.ReLU(true))
-      classifier:add(nn.Dropout(fc_dropout))
+      if fc_dropout > 0 then classifier:add(nn.Dropout(fc_dropout)) end
+      last_layer_size = linear_input_size
 else
   inputsize = linear_input_size
   for i=1, #fc_conf do
@@ -56,7 +54,8 @@ else
   end
   last_layer_size = inputsize
 end
-      classifier:add(nn.Linear(last_layer_size, class_count ) )
+
+classifier:add(nn.Linear(last_layer_size, class_count ) )
 
 
 resnet = resnet:replace(function(module)

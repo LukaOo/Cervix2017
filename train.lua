@@ -365,11 +365,15 @@ function train()
        optim.adam(feval, parameters, optimState)
     else
 	  if opt.optim == 'check' then
-      check_it = 1
+            check_it = 1
 	    local diff, dC, dC_est = optim.checkgrad(feval, parameters)
-      print ("Diff:", diff, torch.norm(dC-dC_est), torch.norm(dC+dC_est), torch.max(dC-dC_est))
+            print ("Diff:", diff, torch.norm(dC-dC_est), torch.norm(dC+dC_est), torch.max(dC-dC_est))
 	  else
-      optim.sgd(feval, parameters, optimState)
+             if opt.optim == 'rmsprop' then
+                optim.rmsprop(feval, parameters, optimState)
+             else
+                optim.sgd(feval, parameters, optimState)
+             end
 	  end
     end
     

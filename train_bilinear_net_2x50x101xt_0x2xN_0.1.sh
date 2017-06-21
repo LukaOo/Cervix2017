@@ -2,10 +2,12 @@
 #######
 # First parameter is output path
 ########
-GPU=0,1
-SAVE_PATH=./bilinear_net_2x50x101xt_0x2
-RESNET=resnext_50_32x4d
-RESNET2=resnext_101_64x4d
+GPU=2,3
+SAVE_PATH=./bilinear_net_2x50x101xt_0x2_Nx0.1
+#RESNET=resnext_50_32x4d
+#RESNET2=resnext_101_64x4d
+RESNET=resnet-50
+RESNET2=resnet-101
 CONTINUE=""
 LearningRateDecay=1e-5
 weightDecay=1e-5
@@ -38,15 +40,15 @@ if [ $iter -gt 0 ]; then
 fi
 # start train
 export CUDA_VISIBLE_DEVICES=$GPU; th ./train.lua \
- -i ./data2/nn_ts_x224.merged/ \
+ -i ./data/nn_ts_x224_merge4train_pack.02/ \
  -s $SAVE_PATH \
  -b 10 \
  -r $LearningRate \
  --learningRateDecay $LearningRateDecay \
  --weightDecay $weightDecay \
- --lr_decay_sheduler '{[40]=0.1, [90]=0.1,  [250]=0.1}' \
+ --lr_decay_sheduler '{[100]=0.1, [200]=0.1,  [250]=0.1}' \
  --model $MODEL \
- --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', model_file1='$RESNET2.t7', gradiend_decrease=0.0, fc_dropout=0.0 }" \
+ --net_config "{cinput_planes=3, image_size=224, class_count=3, model_file='$RESNET.t7', model_file1='$RESNET2.t7', gradiend_decrease=0.1, fc_dropout=0.0 }" \
  --provider_config "{provider='datasets/h5-dir-provider', image_size=224, dual_target=true, bilinear=true, siames_input=true}" \
  --use_optnet 0 \
  --epoch_step 100 \
